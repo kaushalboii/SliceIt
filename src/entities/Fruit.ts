@@ -52,10 +52,12 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
       this.hasReachedApex = true;
     }
 
-    const screenHeight = this.scene.scale.height;
-
     // Check if fallen below screen
-    if (this.hasReachedApex && this.y > screenHeight + 70) {
+    if (this.hasReachedApex && this.y > 790) {
+      if (this.specialAura) {
+        this.specialAura.destroy();
+        this.specialAura = undefined;
+      }
       if (this.onMissCallback) {
         this.onMissCallback(this);
       }
@@ -66,6 +68,11 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
   public slice(sliceAngle: number): { points: number; config: FruitConfig } {
     if (this.isSliced) return { points: 0, config: this.fruitConfig };
     this.isSliced = true;
+
+    if (this.specialAura) {
+      this.specialAura.destroy();
+      this.specialAura = undefined;
+    }
 
     const x = this.x;
     const y = this.y;

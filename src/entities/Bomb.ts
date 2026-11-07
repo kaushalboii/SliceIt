@@ -70,9 +70,7 @@ export class Bomb extends Phaser.Physics.Arcade.Image {
       this.hasReachedApex = true;
     }
 
-    const screenHeight = this.scene.scale.height;
-
-    if (this.hasReachedApex && this.y > screenHeight + 70) {
+    if (this.hasReachedApex && this.y > 790) {
       this.cleanup();
       this.destroy();
     }

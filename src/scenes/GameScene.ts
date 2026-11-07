@@ -83,18 +83,17 @@ export class GameScene extends Phaser.Scene {
 
     this.startFruitSpawning();
 
-    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      this.createBackground(gameSize.width, gameSize.height);
-    });
-
     this.input.on('pointerup', () => {
       this.scoreManager.forceEndStroke(this.lastSlicePos.x, this.lastSlicePos.y);
     });
   }
 
   private createBackground(w: number, h: number): void {
-    if (this.bgGraphics) this.bgGraphics.destroy();
-    this.bgGraphics = this.add.graphics();
+    if (!this.bgGraphics) {
+      this.bgGraphics = this.add.graphics();
+      this.bgGraphics.setDepth(-100);
+    }
+    this.bgGraphics.clear();
     this.bgGraphics.fillGradientStyle(0x0e1726, 0x0e1726, 0x070c14, 0x070c14, 1);
     this.bgGraphics.fillRect(0, 0, w, h);
 

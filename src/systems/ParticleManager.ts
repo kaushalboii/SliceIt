@@ -224,6 +224,74 @@ export class ParticleManager {
     });
   }
 
+  // --- POWER-UP BANNER ---
+  public showPowerUpBanner(title: string, sub: string, color: string): void {
+    const cx = this.scene.scale.width / 2;
+    const cy = this.scene.scale.height * 0.35;
+
+    const container = this.scene.add.container(cx, cy);
+    container.setDepth(140);
+
+    const titleText = this.scene.add.text(0, -22, title, {
+      fontFamily: 'Luckiest Guy, Outfit, sans-serif',
+      fontSize: '44px',
+      color: color,
+      stroke: '#051b2e',
+      strokeThickness: 8
+    }).setOrigin(0.5);
+
+    const subText = this.scene.add.text(0, 26, sub, {
+      fontFamily: 'Outfit, sans-serif',
+      fontSize: '18px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 4
+    }).setOrigin(0.5);
+
+    container.add([titleText, subText]);
+    container.setScale(0.3);
+
+    this.scene.tweens.add({
+      targets: container,
+      scale: 1.25,
+      duration: 280,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.scene.tweens.add({
+          targets: container,
+          alpha: 0,
+          y: cy - 60,
+          scale: 1.0,
+          duration: 600,
+          delay: 500,
+          onComplete: () => container.destroy()
+        });
+      }
+    });
+  }
+
+  // --- CRITICAL SLICE FX ---
+  public showCriticalPopup(x: number, y: number): void {
+    const popup = this.scene.add.text(x, y - 20, '★ CRITICAL +10! ★', {
+      fontFamily: 'Luckiest Guy, Outfit, sans-serif',
+      fontSize: '34px',
+      color: '#ffd600',
+      stroke: '#e65100',
+      strokeThickness: 7
+    }).setOrigin(0.5).setDepth(135).setScale(0.4);
+
+    this.scene.tweens.add({
+      targets: popup,
+      y: y - 75,
+      scale: 1.3,
+      alpha: 0,
+      duration: 850,
+      ease: 'Back.easeOut',
+      onComplete: () => popup.destroy()
+    });
+  }
+
   // --- MISS INDICATOR ---
   public showMissIndicator(x: number, y: number): void {
     const clampedY = Math.min(y, this.scene.scale.height - 40);

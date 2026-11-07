@@ -184,18 +184,7 @@ export class HUD {
   }
 
   private setupResizeListener(): void {
-    this.scene.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      const width = gameSize.width;
-      if (this.rightContainer) {
-        this.rightContainer.setX(width - 24);
-      }
-      if (this.livesContainer) {
-        this.livesContainer.setX(width - 250);
-      }
-      if (this.timerText) {
-        this.timerText.setX(width / 2);
-      }
-    });
+    // Under Scale.FIT, Phaser automatically scales the 1280x720 coordinate canvas cleanly
   }
 
   public updateScore(newScore: number): void {

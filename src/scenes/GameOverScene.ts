@@ -65,15 +65,14 @@ export class GameOverScene extends Phaser.Scene {
 
     this.createScoreCard(width, height);
     this.createActionButtons(width, height);
-
-    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      this.createBackground(gameSize.width, gameSize.height);
-    });
   }
 
   private createBackground(w: number, h: number): void {
-    if (this.bgGraphics) this.bgGraphics.destroy();
-    this.bgGraphics = this.add.graphics();
+    if (!this.bgGraphics) {
+      this.bgGraphics = this.add.graphics();
+      this.bgGraphics.setDepth(-100);
+    }
+    this.bgGraphics.clear();
     this.bgGraphics.fillGradientStyle(0x111c2e, 0x111c2e, 0x060b13, 0x060b13, 1);
     this.bgGraphics.fillRect(0, 0, w, h);
   }

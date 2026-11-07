@@ -41,3 +41,4 @@ export function isFullscreen(): boolean {
     doc.msFullscreenElement
   );
 }
+

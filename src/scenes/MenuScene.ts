@@ -42,8 +42,8 @@ export class MenuScene extends Phaser.Scene {
     this.isTransitioning = false;
     this.modeFruits = [];
 
-    const width = this.scale.width;
-    const height = this.scale.height;
+    const width = 1280;
+    const height = 720;
 
     this.createBackground(width, height);
 
@@ -54,15 +54,14 @@ export class MenuScene extends Phaser.Scene {
     this.createModeFruits(width, height);
     this.createMenuControls(width);
     this.createSenseiTips(width, height);
-
-    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      this.repositionElements(gameSize.width, gameSize.height);
-    });
   }
 
   private createBackground(w: number, h: number): void {
-    if (this.bgGraphics) this.bgGraphics.destroy();
-    this.bgGraphics = this.add.graphics();
+    if (!this.bgGraphics) {
+      this.bgGraphics = this.add.graphics();
+      this.bgGraphics.setDepth(-100);
+    }
+    this.bgGraphics.clear();
     this.bgGraphics.fillGradientStyle(0x132139, 0x132139, 0x090f1a, 0x090f1a, 1);
     this.bgGraphics.fillRect(0, 0, w, h);
 
@@ -73,7 +72,8 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private createTitle(width: number): void {
-    const titleContainer = this.add.container(width / 2, Math.max(105, this.scale.height * 0.17));
+    const titleContainer = this.add.container(width / 2, 125);
+    titleContainer.setDepth(20);
 
     const titleSplatter = this.add.image(0, 0, 'juice_splatter');
     titleSplatter.setScale(1.8);
@@ -82,19 +82,19 @@ export class MenuScene extends Phaser.Scene {
 
     const titleShadow = this.add.text(5, 5, 'SLICE IT!', {
       fontFamily: 'Luckiest Guy, sans-serif',
-      fontSize: '92px',
+      fontSize: '96px',
       color: '#030a14'
     }).setOrigin(0.5);
 
     const titleText = this.add.text(0, 0, 'SLICE IT!', {
       fontFamily: 'Luckiest Guy, sans-serif',
-      fontSize: '92px',
+      fontSize: '96px',
       color: '#ffffff',
       stroke: '#ff1744',
       strokeThickness: 14
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(0, 62, 'ARCADE FRUIT BLADE', {
+    const subtitle = this.add.text(0, 66, 'ARCADE FRUIT BLADE', {
       fontFamily: 'Outfit, sans-serif',
       fontSize: '20px',
       fontStyle: '900',
@@ -107,7 +107,7 @@ export class MenuScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: titleContainer,
-      y: titleContainer.y + 10,
+      y: 135,
       duration: 1800,
       yoyo: true,
       loop: -1,
@@ -145,6 +145,8 @@ export class MenuScene extends Phaser.Scene {
 
     modes.forEach((cfg) => {
       const container = this.add.container(cfg.x, cfg.y);
+      container.setDepth(30);
+
       const fruitData = FRUIT_CONFIGS[cfg.fruit];
 
       const ring = this.add.graphics();
@@ -219,14 +221,14 @@ export class MenuScene extends Phaser.Scene {
   private createMenuControls(width: number): void {
     // Top Left: Blade Skin Switcher
     const activeSkin = this.bladeTrail.getBladeSkin();
-    this.bladeButton = this.add.text(24, 24, `${BLADE_SKINS[activeSkin].icon} BLADE: ${BLADE_SKINS[activeSkin].name.toUpperCase()}`, {
+    this.bladeButton = this.add.text(28, 24, `${BLADE_SKINS[activeSkin].icon} BLADE: ${BLADE_SKINS[activeSkin].name.toUpperCase()}`, {
       fontFamily: 'Outfit, sans-serif',
       fontSize: '14px',
       fontStyle: 'bold',
       color: '#ffffff',
       backgroundColor: '#11223d',
-      padding: { left: 12, right: 12, top: 8, bottom: 8 }
-    }).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+      padding: { left: 14, right: 14, top: 8, bottom: 8 }
+    }).setOrigin(0, 0).setDepth(50).setInteractive({ useHandCursor: true });
 
     this.bladeButton.on('pointerdown', () => {
       SoundManager.getInstance().playClick();
@@ -235,11 +237,12 @@ export class MenuScene extends Phaser.Scene {
     });
 
     // Top Right: Sound & Fullscreen
-    const controlsContainer = this.add.container(width - 24, 24);
+    const controlsContainer = this.add.container(width - 28, 24);
+    controlsContainer.setDepth(50);
 
     const isMuted = SoundManager.getInstance().getIsMuted();
-    const soundBtn = this.add.text(-44, 12, isMuted ? '🔇' : '🔊', {
-      fontSize: '30px'
+    const soundBtn = this.add.text(-50, 14, isMuted ? '🔇' : '🔊', {
+      fontSize: '32px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     soundBtn.on('pointerdown', () => {
@@ -247,8 +250,8 @@ export class MenuScene extends Phaser.Scene {
       soundBtn.setText(nowMuted ? '🔇' : '🔊');
     });
 
-    const fsBtn = this.add.text(0, 12, '⛶', {
-      fontSize: '30px',
+    const fsBtn = this.add.text(0, 14, '⛶', {
+      fontSize: '32px',
       color: '#ffffff'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -268,9 +271,8 @@ export class MenuScene extends Phaser.Scene {
       color: '#4fc3f7',
       stroke: '#051b2e',
       strokeThickness: 3
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(50);
 
-    // Rotate tips every 5 seconds
     this.tipTimer = this.time.addEvent({
       delay: 5000,
       loop: true,
@@ -291,18 +293,6 @@ export class MenuScene extends Phaser.Scene {
         });
       }
     });
-  }
-
-  private repositionElements(w: number, h: number): void {
-    this.createBackground(w, h);
-    if (this.modeFruits.length === 3) {
-      this.modeFruits[0].container.setPosition(w * 0.24, h * 0.58);
-      this.modeFruits[1].container.setPosition(w * 0.50, h * 0.58);
-      this.modeFruits[2].container.setPosition(w * 0.76, h * 0.58);
-    }
-    if (this.tipText) {
-      this.tipText.setPosition(w / 2, h - 38);
-    }
   }
 
   update(): void {
