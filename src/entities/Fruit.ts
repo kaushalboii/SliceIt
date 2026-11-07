@@ -9,6 +9,7 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
   private particleManager: ParticleManager;
   private onMissCallback?: (fruit: Fruit) => void;
   private hasReachedApex: boolean = false;
+  private specialAura?: Phaser.GameObjects.Graphics;
 
   constructor(
     scene: Phaser.Scene,
@@ -28,6 +29,11 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
 
     this.setDepth(10);
     this.setCircle(config.radius, (this.width - config.radius * 2) / 2, (this.height - config.radius * 2) / 2);
+
+    if (config.isSpecial) {
+      this.specialAura = scene.add.graphics();
+      this.specialAura.setDepth(9);
+    }
   }
 
   public launch(vx: number, vy: number, angularVelocity: number): void {

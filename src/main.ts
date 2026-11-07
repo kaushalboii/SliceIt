@@ -7,13 +7,12 @@ import { GameOverScene } from './scenes/GameOverScene';
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
-  width: window.innerWidth,
-  height: window.innerHeight,
   backgroundColor: '#090f1a',
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    expandParent: true
+    width: '100%',
+    height: '100%'
   },
   physics: {
     default: 'arcade',

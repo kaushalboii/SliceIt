@@ -3,6 +3,7 @@ import { BladeTrail } from '../entities/BladeTrail';
 import { ParticleManager } from '../systems/ParticleManager';
 import { SoundManager } from '../audio/SoundManager';
 import { GameMode, FRUIT_CONFIGS, BLADE_SKINS } from '../config/GameConfig';
+import { toggleFullscreen } from '../utils/fullscreen';
 
 interface ModeFruit {
   mode: GameMode;
@@ -252,11 +253,8 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     fsBtn.on('pointerdown', () => {
-      if (this.scale.isFullscreen) {
-        this.scale.stopFullscreen();
-      } else {
-        this.scale.startFullscreen();
-      }
+      SoundManager.getInstance().playClick();
+      toggleFullscreen();
     });
 
     controlsContainer.add([soundBtn, fsBtn]);

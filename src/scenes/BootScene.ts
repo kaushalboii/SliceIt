@@ -18,6 +18,9 @@ export class BootScene extends Phaser.Scene {
     this.generateKiwiTextures();
     this.generateStrawberryTextures();
     this.generateBombTexture();
+    this.generateFrostTextures();
+    this.generateFrenzyTextures();
+    this.generateStarTextures();
     this.generateJuiceSplatterTexture();
     this.generateParticleTextures();
     this.generateBladeSparkTexture();
@@ -709,6 +712,223 @@ export class BootScene extends Phaser.Scene {
     sCtx.fill();
 
     this.textures.addCanvas('particle_pulp', sCanvas);
+  }
+
+  // --- FROST MELON (Special: Freeze Time) ---
+  private generateFrostTextures(): void {
+    const size = 94;
+    const center = size / 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    // Ice cyan gradient sphere
+    const grad = ctx.createRadialGradient(center - 12, center - 12, 4, center, center, 40);
+    grad.addColorStop(0, '#e0f7fa');
+    grad.addColorStop(0.5, '#4dd0e1');
+    grad.addColorStop(1, '#00838f');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(center, center, 38, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Snowflake crystal facet lines
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 6; i++) {
+      const ang = (i * Math.PI) / 3;
+      ctx.beginPath();
+      ctx.moveTo(center, center);
+      ctx.lineTo(center + Math.cos(ang) * 32, center + Math.sin(ang) * 32);
+      ctx.stroke();
+    }
+
+    // Specular icy glint
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.arc(center - 12, center - 12, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    this.textures.addCanvas('fruit_frost', canvas);
+
+    const makeHalf = (isLeft: boolean): HTMLCanvasElement => {
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const x = c.getContext('2d')!;
+      x.save();
+      x.translate(center, center);
+      if (!isLeft) x.scale(-1, 1);
+
+      x.beginPath();
+      x.arc(0, 0, 38, Math.PI / 2, -Math.PI / 2);
+      x.closePath();
+      x.fillStyle = '#00838f';
+      x.fill();
+
+      x.beginPath();
+      x.arc(0, 0, 33, Math.PI / 2, -Math.PI / 2);
+      x.closePath();
+      x.fillStyle = '#b2ebf2';
+      x.fill();
+
+      // Crystalline core
+      x.fillStyle = '#ffffff';
+      x.beginPath();
+      x.arc(-6, 0, 8, 0, Math.PI * 2);
+      x.fill();
+
+      x.restore();
+      return c;
+    };
+
+    this.textures.addCanvas('fruit_frost_half_left', makeHalf(true));
+    this.textures.addCanvas('fruit_frost_half_right', makeHalf(false));
+  }
+
+  // --- DRAGON FRUIT (Special: Fruit Frenzy) ---
+  private generateFrenzyTextures(): void {
+    const size = 96;
+    const center = size / 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    // Vibrant Magenta sphere
+    const grad = ctx.createRadialGradient(center - 10, center - 10, 4, center, center, 40);
+    grad.addColorStop(0, '#ff4081');
+    grad.addColorStop(0.6, '#d500f9');
+    grad.addColorStop(1, '#880e4f');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(center, center, 38, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Spiky lime green scales
+    ctx.fillStyle = '#76ff03';
+    for (let i = 0; i < 7; i++) {
+      const ang = (i * Math.PI * 2) / 7;
+      const sx = center + Math.cos(ang) * 36;
+      const sy = center + Math.sin(ang) * 36;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(center + Math.cos(ang) * 44, center + Math.sin(ang) * 44);
+      ctx.lineTo(sx + 5, sy + 5);
+      ctx.fill();
+    }
+
+    this.textures.addCanvas('fruit_frenzy', canvas);
+
+    const makeHalf = (isLeft: boolean): HTMLCanvasElement => {
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const x = c.getContext('2d')!;
+      x.save();
+      x.translate(center, center);
+      if (!isLeft) x.scale(-1, 1);
+
+      x.beginPath();
+      x.arc(0, 0, 38, Math.PI / 2, -Math.PI / 2);
+      x.closePath();
+      x.fillStyle = '#d500f9';
+      x.fill();
+
+      // White seeded flesh
+      x.beginPath();
+      x.arc(0, 0, 32, Math.PI / 2, -Math.PI / 2);
+      x.closePath();
+      x.fillStyle = '#ffffff';
+      x.fill();
+
+      // Black speckled seeds
+      x.fillStyle = '#212121';
+      for (let i = 0; i < 12; i++) {
+        const rx = -5 - Math.random() * 22;
+        const ry = (Math.random() - 0.5) * 45;
+        x.beginPath();
+        x.arc(rx, ry, 1.6, 0, Math.PI * 2);
+        x.fill();
+      }
+
+      x.restore();
+      return c;
+    };
+
+    this.textures.addCanvas('fruit_frenzy_half_left', makeHalf(true));
+    this.textures.addCanvas('fruit_frenzy_half_right', makeHalf(false));
+  }
+
+  // --- STAR FRUIT (Special: Double Points) ---
+  private generateStarTextures(): void {
+    const size = 90;
+    const center = size / 2;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+
+    // 5-point star
+    ctx.fillStyle = '#ffd600';
+    ctx.strokeStyle = '#ff6d00';
+    ctx.lineWidth = 3;
+
+    ctx.beginPath();
+    const points = 5;
+    for (let i = 0; i < points * 2; i++) {
+      const r = i % 2 === 0 ? 38 : 18;
+      const angle = (i * Math.PI) / points - Math.PI / 2;
+      const x = center + Math.cos(angle) * r;
+      const y = center + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Star shiny core
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(center - 5, center - 5, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    this.textures.addCanvas('fruit_star', canvas);
+
+    const makeHalf = (isLeft: boolean): HTMLCanvasElement => {
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const x = c.getContext('2d')!;
+      x.save();
+      x.translate(center, center);
+      if (!isLeft) x.scale(-1, 1);
+
+      x.beginPath();
+      x.arc(0, 0, 36, Math.PI / 2, -Math.PI / 2);
+      x.closePath();
+      x.fillStyle = '#ffd600';
+      x.fill();
+
+      x.beginPath();
+      x.arc(0, 0, 28, Math.PI / 2, -Math.PI / 2);
+      x.closePath();
+      x.fillStyle = '#fffde7';
+      x.fill();
+
+      x.restore();
+      return c;
+    };
+
+    this.textures.addCanvas('fruit_star_half_left', makeHalf(true));
+    this.textures.addCanvas('fruit_star_half_right', makeHalf(false));
   }
 
   // --- BLADE SPARK ---

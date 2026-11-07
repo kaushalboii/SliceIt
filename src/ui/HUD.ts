@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GameMode, GAME_CONSTANTS, BladeSkin, BLADE_SKINS } from '../config/GameConfig';
 import { SoundManager } from '../audio/SoundManager';
 import { BladeTrail } from '../entities/BladeTrail';
+import { toggleFullscreen } from '../utils/fullscreen';
 
 export class HUD {
   private scene: Phaser.Scene;
@@ -129,11 +130,7 @@ export class HUD {
 
     this.fullscreenButton.on('pointerdown', () => {
       SoundManager.getInstance().playClick();
-      if (this.scene.scale.isFullscreen) {
-        this.scene.scale.stopFullscreen();
-      } else {
-        this.scene.scale.startFullscreen();
-      }
+      toggleFullscreen();
     });
 
     // Audio Mute Button
