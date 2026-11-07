@@ -20,6 +20,7 @@ export class MenuScene extends Phaser.Scene {
   private particleManager!: ParticleManager;
   private modeFruits: ModeFruit[] = [];
   private isTransitioning: boolean = false;
+  private bgGraphics!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: 'MenuScene' });
@@ -29,85 +30,79 @@ export class MenuScene extends Phaser.Scene {
     this.isTransitioning = false;
     this.modeFruits = [];
 
-    const width = this.cameras.main.width;
-    const height = this.cameras.main.height;
+    const width = this.scale.width;
+    const height = this.scale.height;
 
-    // Background dojo plank pattern / dark vignette
     this.createBackground(width, height);
 
-    // Particles & Blade
     this.particleManager = new ParticleManager(this);
     this.bladeTrail = new BladeTrail(this);
 
-    // Start background music loop
     SoundManager.getInstance().startMusic();
 
-    // Title graphics & Juice splatter
     this.createTitle(width);
-
-    // Interactive Mode Fruit Buttons (Sliceable!)
     this.createModeFruits(width, height);
-
-    // Audio & Fullscreen HUD controls
     this.createMenuControls(width);
 
-    // Floating instructions
-    const hint = this.add.text(width / 2, height - 36, '🔪 SWIPE ACROSS A FRUIT TO SELECT MODE 🔪', {
+    const hint = this.add.text(width / 2, height - 42, '🔪 SWIPE ACROSS A FRUIT TO SELECT YOUR MODE 🔪', {
       fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-      fontSize: '20px',
+      fontSize: '22px',
       color: '#00f0ff',
       stroke: '#051b2e',
-      strokeThickness: 4
+      strokeThickness: 5
     }).setOrigin(0.5);
 
     this.tweens.add({
       targets: hint,
-      alpha: 0.4,
+      alpha: 0.35,
+      scale: 1.05,
       duration: 800,
       yoyo: true,
       loop: -1
     });
+
+    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+      this.repositionElements(gameSize.width, gameSize.height);
+    });
   }
 
   private createBackground(w: number, h: number): void {
-    // Dark radial background
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x132139, 0x132139, 0x090f1a, 0x090f1a, 1);
-    bg.fillRect(0, 0, w, h);
+    if (this.bgGraphics) this.bgGraphics.destroy();
+    this.bgGraphics = this.add.graphics();
+    this.bgGraphics.fillGradientStyle(0x132139, 0x132139, 0x090f1a, 0x090f1a, 1);
+    this.bgGraphics.fillRect(0, 0, w, h);
 
-    // Dojo planks lines
-    bg.lineStyle(1.5, 0x1d3050, 0.4);
+    this.bgGraphics.lineStyle(1.5, 0x1d3050, 0.4);
     for (let y = 60; y < h; y += 75) {
-      bg.lineBetween(0, y, w, y);
+      this.bgGraphics.lineBetween(0, y, w, y);
     }
   }
 
   private createTitle(width: number): void {
-    const titleContainer = this.add.container(width / 2, 110);
+    const titleContainer = this.add.container(width / 2, Math.max(110, this.scale.height * 0.18));
 
-    // Splatter behind title
     const titleSplatter = this.add.image(0, 0, 'juice_splatter');
-    titleSplatter.setScale(1.6);
+    titleSplatter.setScale(1.8);
     titleSplatter.setTint(0xff1744);
-    titleSplatter.setAlpha(0.4);
+    titleSplatter.setAlpha(0.45);
 
-    const titleShadow = this.add.text(4, 4, 'SLICE IT!', {
+    const titleShadow = this.add.text(5, 5, 'SLICE IT!', {
       fontFamily: 'Luckiest Guy, sans-serif',
-      fontSize: '84px',
+      fontSize: '92px',
       color: '#030a14'
     }).setOrigin(0.5);
 
     const titleText = this.add.text(0, 0, 'SLICE IT!', {
       fontFamily: 'Luckiest Guy, sans-serif',
-      fontSize: '84px',
+      fontSize: '92px',
       color: '#ffffff',
       stroke: '#ff1744',
-      strokeThickness: 12
+      strokeThickness: 14
     }).setOrigin(0.5);
 
-    const subtitle = this.add.text(0, 56, 'ARCADE FRUIT BLADE', {
+    const subtitle = this.add.text(0, 62, 'ARCADE FRUIT BLADE', {
       fontFamily: 'Outfit, sans-serif',
-      fontSize: '18px',
+      fontSize: '20px',
       fontStyle: '900',
       color: '#ffd54f',
       stroke: '#000000',
@@ -116,10 +111,9 @@ export class MenuScene extends Phaser.Scene {
 
     titleContainer.add([titleSplatter, titleShadow, titleText, subtitle]);
 
-    // Floating animation
     this.tweens.add({
       targets: titleContainer,
-      y: 118,
+      y: titleContainer.y + 10,
       duration: 1800,
       yoyo: true,
       loop: -1,
@@ -134,8 +128,8 @@ export class MenuScene extends Phaser.Scene {
         label: 'CLASSIC',
         sub: '3 Lives & Bombs',
         fruit: 'watermelon',
-        x: w * 0.23,
-        y: h * 0.58
+        x: w * 0.24,
+        y: h * 0.60
       },
       {
         mode: 'zen',
@@ -143,15 +137,15 @@ export class MenuScene extends Phaser.Scene {
         sub: '90s No Bombs',
         fruit: 'orange',
         x: w * 0.50,
-        y: h * 0.58
+        y: h * 0.60
       },
       {
         mode: 'time',
         label: 'TIME ATTACK',
         sub: '60s Speedrun',
         fruit: 'strawberry',
-        x: w * 0.77,
-        y: h * 0.58
+        x: w * 0.76,
+        y: h * 0.60
       }
     ];
 
@@ -159,37 +153,33 @@ export class MenuScene extends Phaser.Scene {
       const container = this.add.container(cfg.x, cfg.y);
       const fruitData = FRUIT_CONFIGS[cfg.fruit];
 
-      // Orbiting dotted ring
       const ring = this.add.graphics();
-      this.drawDottedRing(ring, fruitData.radius + 18, 0x00f0ff);
+      this.drawDottedRing(ring, fruitData.radius + 22, 0x00f0ff);
 
-      // Fruit sprite
       const sprite = this.add.image(0, 0, fruitData.textureWhole);
-      sprite.setScale(1.15);
+      sprite.setScale(1.25);
 
-      // Text labels
-      const modeLabel = this.add.text(0, fruitData.radius + 30, cfg.label, {
+      const modeLabel = this.add.text(0, fruitData.radius + 36, cfg.label, {
         fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-        fontSize: '24px',
+        fontSize: '26px',
         color: '#ffffff',
         stroke: '#051b2e',
-        strokeThickness: 5
+        strokeThickness: 6
       }).setOrigin(0.5);
 
-      const subLabel = this.add.text(0, fruitData.radius + 54, cfg.sub, {
+      const subLabel = this.add.text(0, fruitData.radius + 64, cfg.sub, {
         fontFamily: 'Outfit, sans-serif',
-        fontSize: '13px',
+        fontSize: '14px',
         fontStyle: 'bold',
         color: '#ffd54f',
         stroke: '#000000',
         strokeThickness: 3
       }).setOrigin(0.5);
 
-      // Best score tag
       const best = localStorage.getItem(`slice_it_best_${cfg.mode}`) || '0';
-      const bestTag = this.add.text(0, -fruitData.radius - 22, `BEST: ${best}`, {
+      const bestTag = this.add.text(0, -fruitData.radius - 26, `BEST: ${best}`, {
         fontFamily: 'Outfit, sans-serif',
-        fontSize: '13px',
+        fontSize: '14px',
         fontStyle: 'bold',
         color: '#a7ffeb',
         stroke: '#03141f',
@@ -198,11 +188,10 @@ export class MenuScene extends Phaser.Scene {
 
       container.add([ring, sprite, modeLabel, subLabel, bestTag]);
 
-      // Gentle floating tween
       this.tweens.add({
         targets: container,
-        y: cfg.y + (cfg.mode === 'zen' ? -12 : 12),
-        duration: 1500 + Math.random() * 500,
+        y: cfg.y + (cfg.mode === 'zen' ? -14 : 14),
+        duration: 1600 + Math.random() * 400,
         yoyo: true,
         loop: -1,
         ease: 'Sine.easeInOut'
@@ -215,7 +204,7 @@ export class MenuScene extends Phaser.Scene {
         container,
         sprite,
         ring,
-        radius: fruitData.radius + 14,
+        radius: fruitData.radius + 18,
         isSliced: false
       });
     });
@@ -223,27 +212,52 @@ export class MenuScene extends Phaser.Scene {
 
   private drawDottedRing(g: Phaser.GameObjects.Graphics, radius: number, color: number): void {
     g.clear();
-    const count = 16;
+    const count = 18;
     for (let i = 0; i < count; i++) {
       const angle = (i * Math.PI * 2) / count;
       const rx = Math.cos(angle) * radius;
       const ry = Math.sin(angle) * radius;
-      g.fillStyle(color, 0.65);
-      g.fillCircle(rx, ry, 3);
+      g.fillStyle(color, 0.7);
+      g.fillCircle(rx, ry, 3.5);
     }
   }
 
   private createMenuControls(width: number): void {
-    // Sound Toggle in Menu
+    const controlsContainer = this.add.container(width - 24, 24);
+
     const isMuted = SoundManager.getInstance().getIsMuted();
-    const soundBtn = this.add.text(width - 36, 32, isMuted ? '🔇' : '🔊', {
-      fontSize: '28px'
+    const soundBtn = this.add.text(-44, 0, isMuted ? '🔇' : '🔊', {
+      fontSize: '30px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     soundBtn.on('pointerdown', () => {
       const nowMuted = SoundManager.getInstance().toggleMute();
       soundBtn.setText(nowMuted ? '🔇' : '🔊');
     });
+
+    const fsBtn = this.add.text(0, 0, '⛶', {
+      fontSize: '30px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    fsBtn.on('pointerdown', () => {
+      if (this.scale.isFullscreen) {
+        this.scale.stopFullscreen();
+      } else {
+        this.scale.startFullscreen();
+      }
+    });
+
+    controlsContainer.add([soundBtn, fsBtn]);
+  }
+
+  private repositionElements(w: number, h: number): void {
+    this.createBackground(w, h);
+    if (this.modeFruits.length === 3) {
+      this.modeFruits[0].container.setPosition(w * 0.24, h * 0.60);
+      this.modeFruits[1].container.setPosition(w * 0.50, h * 0.60);
+      this.modeFruits[2].container.setPosition(w * 0.76, h * 0.60);
+    }
   }
 
   update(): void {
@@ -251,15 +265,11 @@ export class MenuScene extends Phaser.Scene {
 
     if (this.isTransitioning) return;
 
-    // Rotate the rings
     this.modeFruits.forEach((mf) => {
       mf.ring.rotation += 0.015;
       mf.sprite.rotation += 0.008;
 
-      // Check blade slice intersection
-      const worldX = mf.container.x;
-      const worldY = mf.container.y;
-      const hit = this.bladeTrail.checkSliceIntersection(worldX, worldY, mf.radius);
+      const hit = this.bladeTrail.checkSliceIntersection(mf.container.x, mf.container.y, mf.radius);
 
       if (hit && !mf.isSliced) {
         this.selectMode(mf, hit.angle);
@@ -271,16 +281,13 @@ export class MenuScene extends Phaser.Scene {
     mf.isSliced = true;
     this.isTransitioning = true;
 
-    // Visual & audio juice effects
     this.particleManager.addJuiceSplatter(mf.container.x, mf.container.y, mf.juiceColor);
     this.particleManager.emitJuiceBurst(mf.container.x, mf.container.y, mf.juiceColor, sliceAngle);
     SoundManager.getInstance().playSlice(mf.fruitKey);
 
-    // Hide whole sprite
     mf.sprite.setVisible(false);
     mf.ring.setVisible(false);
 
-    // Spawn slice halves
     const fruitData = FRUIT_CONFIGS[mf.fruitKey];
     const halfLeft = this.physics.add.image(mf.container.x, mf.container.y, fruitData.textureHalfLeft);
     const halfRight = this.physics.add.image(mf.container.x, mf.container.y, fruitData.textureHalfRight);
@@ -289,15 +296,14 @@ export class MenuScene extends Phaser.Scene {
     halfRight.setRotation(sliceAngle);
 
     const normal = sliceAngle + Math.PI / 2;
-    const speed = 250;
-    halfLeft.setVelocity(Math.cos(normal) * speed, Math.sin(normal) * speed - 100);
-    halfRight.setVelocity(-Math.cos(normal) * speed, -Math.sin(normal) * speed - 100);
-    halfLeft.setAngularVelocity(-250);
-    halfRight.setAngularVelocity(250);
+    const speed = 280;
+    halfLeft.setVelocity(Math.cos(normal) * speed, Math.sin(normal) * speed - 120);
+    halfRight.setVelocity(-Math.cos(normal) * speed, -Math.sin(normal) * speed - 120);
+    halfLeft.setAngularVelocity(-260);
+    halfRight.setAngularVelocity(260);
     halfLeft.setGravityY(800);
     halfRight.setGravityY(800);
 
-    // Fade out and transition to GameScene
     this.cameras.main.fade(450, 7, 11, 20);
     this.time.delayedCall(450, () => {
       this.scene.start('GameScene', { mode: mf.mode });
@@ -309,4 +315,3 @@ export class MenuScene extends Phaser.Scene {
     this.particleManager.destroy();
   }
 }
-

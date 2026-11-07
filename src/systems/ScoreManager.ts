@@ -9,11 +9,18 @@ export class ScoreManager {
   private lastSliceTime: number = 0;
   private particleManager: ParticleManager;
   private onScoreChanged?: (score: number) => void;
+  private onComboTriggered?: (comboCount: number, bonus: number) => void;
 
-  constructor(mode: GameMode, particleManager: ParticleManager, onScoreChanged?: (score: number) => void) {
+  constructor(
+    mode: GameMode,
+    particleManager: ParticleManager,
+    onScoreChanged?: (score: number) => void,
+    onComboTriggered?: (comboCount: number, bonus: number) => void
+  ) {
     this.mode = mode;
     this.particleManager = particleManager;
     this.onScoreChanged = onScoreChanged;
+    this.onComboTriggered = onComboTriggered;
   }
 
   public addFruitSlice(basePoints: number, x: number, y: number, time: number): void {
@@ -43,9 +50,17 @@ export class ScoreManager {
     }
   }
 
+  public forceEndStroke(lastSliceX: number, lastSliceY: number): void {
+    if (this.currentCombo > 1) {
+      this.finalizeCombo(lastSliceX, lastSliceY);
+      this.currentCombo = 0;
+    }
+  }
+
   private finalizeCombo(x: number, y: number): void {
-    if (this.currentCombo >= 3) {
+    if (this.currentCombo >= 2) {
       const bonusMap: Record<number, number> = {
+        2: 2,
         3: 3,
         4: 8,
         5: 15,
@@ -56,6 +71,10 @@ export class ScoreManager {
 
       SoundManager.getInstance().playCombo(this.currentCombo);
       this.particleManager.showComboBanner(x, y, this.currentCombo, bonus);
+
+      if (this.onComboTriggered) {
+        this.onComboTriggered(this.currentCombo, bonus);
+      }
 
       if (this.onScoreChanged) {
         this.onScoreChanged(this.currentScore);
@@ -88,4 +107,3 @@ export class ScoreManager {
     return false;
   }
 }
-

@@ -10,8 +10,12 @@ export class HUD {
   private timerText?: Phaser.GameObjects.Text;
   private lifeIcons: Phaser.GameObjects.Text[] = [];
   private soundButton!: Phaser.GameObjects.Text;
+  private fullscreenButton!: Phaser.GameObjects.Text;
   private pauseButton!: Phaser.GameObjects.Text;
   private pauseOverlay?: Phaser.GameObjects.Container;
+  private rightContainer!: Phaser.GameObjects.Container;
+  private livesContainer?: Phaser.GameObjects.Container;
+  private scoreContainer!: Phaser.GameObjects.Container;
   private isPaused: boolean = false;
   private onResumeCallback?: () => void;
   private onRestartCallback?: () => void;
@@ -33,27 +37,28 @@ export class HUD {
     this.onQuitCallback = callbacks?.onQuit;
 
     this.createHUD();
+    this.setupResizeListener();
   }
 
   private createHUD(): void {
-    const width = this.scene.cameras.main.width;
+    const width = this.scene.scale.width;
 
     // --- SCORE & BEST DISPLAY (Top Left) ---
-    const scoreContainer = this.scene.add.container(28, 24);
-    scoreContainer.setDepth(90);
+    this.scoreContainer = this.scene.add.container(24, 20);
+    this.scoreContainer.setDepth(90);
 
-    const fruitIcon = this.scene.add.image(14, 18, 'fruit_watermelon').setScale(0.38);
+    const fruitIcon = this.scene.add.image(18, 22, 'fruit_watermelon').setScale(0.42);
 
-    this.scoreText = this.scene.add.text(42, 0, '0', {
+    this.scoreText = this.scene.add.text(50, 0, '0', {
       fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-      fontSize: '44px',
+      fontSize: '48px',
       color: '#ffffff',
       stroke: '#051b2e',
-      strokeThickness: 6
+      strokeThickness: 7
     });
 
     const bestScore = localStorage.getItem(`slice_it_best_${this.mode}`) || '0';
-    this.bestText = this.scene.add.text(44, 46, `BEST: ${bestScore}`, {
+    this.bestText = this.scene.add.text(52, 50, `BEST: ${bestScore}`, {
       fontFamily: 'Outfit, sans-serif',
       fontSize: '15px',
       fontStyle: 'bold',
@@ -62,25 +67,40 @@ export class HUD {
       strokeThickness: 3
     });
 
-    const modeTag = this.scene.add.text(44, 66, this.mode.toUpperCase() + ' MODE', {
+    const modeTag = this.scene.add.text(52, 72, this.mode.toUpperCase() + ' MODE', {
       fontFamily: 'Outfit, sans-serif',
-      fontSize: '11px',
+      fontSize: '12px',
       fontStyle: 'bold',
       color: '#4fc3f7',
       backgroundColor: '#0a1d37',
-      padding: { left: 6, right: 6, top: 2, bottom: 2 }
+      padding: { left: 8, right: 8, top: 2, bottom: 2 }
     });
 
-    scoreContainer.add([fruitIcon, this.scoreText, this.bestText, modeTag]);
+    this.scoreContainer.add([fruitIcon, this.scoreText, this.bestText, modeTag]);
 
-    // --- TOP RIGHT CONTROLS & LIVES / TIMER ---
-    const rightContainer = this.scene.add.container(width - 28, 24);
-    rightContainer.setDepth(90);
+    // --- TOP RIGHT CONTROLS ---
+    this.rightContainer = this.scene.add.container(width - 24, 20);
+    this.rightContainer.setDepth(90);
+
+    // Fullscreen Toggle Button
+    this.fullscreenButton = this.scene.add.text(-80, 8, '⛶', {
+      fontSize: '28px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    this.fullscreenButton.on('pointerdown', () => {
+      SoundManager.getInstance().playClick();
+      if (this.scene.scale.isFullscreen) {
+        this.scene.scale.stopFullscreen();
+      } else {
+        this.scene.scale.startFullscreen();
+      }
+    });
 
     // Audio Mute Button
     const isMuted = SoundManager.getInstance().getIsMuted();
-    this.soundButton = this.scene.add.text(-38, 4, isMuted ? '🔇' : '🔊', {
-      fontSize: '26px'
+    this.soundButton = this.scene.add.text(-40, 8, isMuted ? '🔇' : '🔊', {
+      fontSize: '28px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     this.soundButton.on('pointerdown', () => {
@@ -89,48 +109,61 @@ export class HUD {
     });
 
     // Pause Button
-    this.pauseButton = this.scene.add.text(0, 4, '⏸', {
-      fontSize: '26px'
+    this.pauseButton = this.scene.add.text(0, 8, '⏸', {
+      fontSize: '28px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     this.pauseButton.on('pointerdown', () => {
       this.togglePause();
     });
 
-    rightContainer.add([this.soundButton, this.pauseButton]);
+    this.rightContainer.add([this.fullscreenButton, this.soundButton, this.pauseButton]);
 
     // Mode specific display (Classic = 3 Lives, Zen/Time = Timer)
     if (this.mode === 'classic') {
-      const livesContainer = this.scene.add.container(width - 150, 24);
-      livesContainer.setDepth(90);
+      this.livesContainer = this.scene.add.container(width - 220, 20);
+      this.livesContainer.setDepth(90);
 
       for (let i = 0; i < GAME_CONSTANTS.CLASSIC_MAX_LIVES; i++) {
-        const xMark = this.scene.add.text(i * 32, 0, '✖', {
+        const xMark = this.scene.add.text(i * 36, 2, '✖', {
           fontFamily: 'Outfit, sans-serif',
-          fontSize: '34px',
-          color: '#263238', // Grayed out initially (unlost)
+          fontSize: '36px',
+          color: '#263238',
           stroke: '#000000',
-          strokeThickness: 3
+          strokeThickness: 4
         });
         this.lifeIcons.push(xMark);
-        livesContainer.add(xMark);
+        this.livesContainer.add(xMark);
       }
     } else {
-      // Timer for Time / Zen mode
       const duration = this.mode === 'time' ? GAME_CONSTANTS.TIME_MODE_DURATION : GAME_CONSTANTS.ZEN_MODE_DURATION;
-      this.timerText = this.scene.add.text(width / 2, 34, this.formatTime(duration), {
+      this.timerText = this.scene.add.text(width / 2, 40, this.formatTime(duration), {
         fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-        fontSize: '36px',
+        fontSize: '44px',
         color: '#ffeb3b',
         stroke: '#051b2e',
-        strokeThickness: 5
+        strokeThickness: 6
       }).setOrigin(0.5).setDepth(90);
     }
   }
 
+  private setupResizeListener(): void {
+    this.scene.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+      const width = gameSize.width;
+      if (this.rightContainer) {
+        this.rightContainer.setX(width - 24);
+      }
+      if (this.livesContainer) {
+        this.livesContainer.setX(width - 220);
+      }
+      if (this.timerText) {
+        this.timerText.setX(width / 2);
+      }
+    });
+  }
+
   public updateScore(newScore: number): void {
     this.scoreText.setText(String(newScore));
-    // Pop scale tween
     this.scene.tweens.add({
       targets: this.scoreText,
       scale: 1.25,
@@ -170,7 +203,7 @@ export class HUD {
       this.timerText.setColor('#ff1744');
       this.scene.tweens.add({
         targets: this.timerText,
-        scale: 1.15,
+        scale: 1.2,
         duration: 120,
         yoyo: true
       });
@@ -196,36 +229,33 @@ export class HUD {
     this.isPaused = true;
     SoundManager.getInstance().playClick();
 
-    const w = this.scene.cameras.main.width;
-    const h = this.scene.cameras.main.height;
+    const w = this.scene.scale.width;
+    const h = this.scene.scale.height;
 
     this.pauseOverlay = this.scene.add.container(0, 0);
     this.pauseOverlay.setDepth(150);
 
-    const backdrop = this.scene.add.rectangle(w / 2, h / 2, w, h, 0x070b14, 0.85);
+    const backdrop = this.scene.add.rectangle(w / 2, h / 2, w, h, 0x070b14, 0.88);
 
-    const title = this.scene.add.text(w / 2, h / 2 - 110, 'GAME PAUSED', {
+    const title = this.scene.add.text(w / 2, h / 2 - 120, 'GAME PAUSED', {
       fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-      fontSize: '52px',
+      fontSize: '56px',
       color: '#ffffff',
       stroke: '#00f0ff',
       strokeThickness: 8
     }).setOrigin(0.5);
 
-    // Resume button
-    const resumeBtn = this.createButton(w / 2, h / 2 - 10, 'RESUME', '#00e676', () => {
+    const resumeBtn = this.createButton(w / 2, h / 2 - 15, 'RESUME', '#00e676', () => {
       this.resumeGame();
     });
 
-    // Restart button
     const restartBtn = this.createButton(w / 2, h / 2 + 55, 'RESTART', '#ff9800', () => {
       if (this.onRestartCallback) {
         this.onRestartCallback();
       }
     });
 
-    // Quit button
-    const quitBtn = this.createButton(w / 2, h / 2 + 120, 'MAIN MENU', '#e0e0e0', () => {
+    const quitBtn = this.createButton(w / 2, h / 2 + 125, 'MAIN MENU', '#e0e0e0', () => {
       if (this.onQuitCallback) {
         this.onQuitCallback();
       }
@@ -252,13 +282,13 @@ export class HUD {
   private createButton(x: number, y: number, text: string, color: string, onClick: () => void): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
 
-    const bg = this.scene.add.rectangle(0, 0, 220, 48, 0x16253d, 0.95);
+    const bg = this.scene.add.rectangle(0, 0, 240, 52, 0x16253d, 0.95);
     bg.setStrokeStyle(2, 0x4fc3f7);
     bg.setInteractive({ useHandCursor: true });
 
     const label = this.scene.add.text(0, 0, text, {
       fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-      fontSize: '22px',
+      fontSize: '24px',
       color: color
     }).setOrigin(0.5);
 
@@ -292,4 +322,3 @@ export class HUD {
     }
   }
 }
-

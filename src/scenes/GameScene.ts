@@ -25,6 +25,7 @@ export class GameScene extends Phaser.Scene {
 
   private isGameOver: boolean = false;
   private lastSlicePos: { x: number; y: number } = { x: 500, y: 325 };
+  private bgGraphics!: Phaser.GameObjects.Graphics;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -39,32 +40,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
-    const width = this.cameras.main.width;
-    const height = this.cameras.main.height;
+    const width = this.scale.width;
+    const height = this.scale.height;
 
-    // Background
     this.createBackground(width, height);
 
-    // Systems
     this.particleManager = new ParticleManager(this);
-    this.scoreManager = new ScoreManager(this.mode, this.particleManager, (score) => {
-      this.hud.updateScore(score);
-    });
+    this.bladeTrail = new BladeTrail(this);
 
-    // HUD
+    // Setup ScoreManager with Combo Flare integration
+    this.scoreManager = new ScoreManager(
+      this.mode,
+      this.particleManager,
+      (score) => {
+        this.hud.updateScore(score);
+      },
+      (comboCount) => {
+        if (comboCount >= 2) {
+          this.bladeTrail.activateComboFlare();
+        }
+      }
+    );
+
     this.hud = new HUD(this, this.mode, {
       onResume: () => this.physics.resume(),
       onRestart: () => this.restartGame(),
       onQuit: () => this.quitToMenu()
     });
 
-    // Blade
-    this.bladeTrail = new BladeTrail(this);
-
-    // Start background music
     SoundManager.getInstance().startMusic();
 
-    // Setup mode-specific timers
     if (this.mode === 'time') {
       this.remainingTime = GAME_CONSTANTS.TIME_MODE_DURATION;
       this.startCountdownTimer();
@@ -73,19 +78,27 @@ export class GameScene extends Phaser.Scene {
       this.startCountdownTimer();
     }
 
-    // Start fruit waves
     this.startFruitSpawning();
+
+    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+      this.createBackground(gameSize.width, gameSize.height);
+    });
+
+    // Detect stroke end on pointer up
+    this.input.on('pointerup', () => {
+      this.scoreManager.forceEndStroke(this.lastSlicePos.x, this.lastSlicePos.y);
+    });
   }
 
   private createBackground(w: number, h: number): void {
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0e1726, 0x0e1726, 0x070c14, 0x070c14, 1);
-    bg.fillRect(0, 0, w, h);
+    if (this.bgGraphics) this.bgGraphics.destroy();
+    this.bgGraphics = this.add.graphics();
+    this.bgGraphics.fillGradientStyle(0x0e1726, 0x0e1726, 0x070c14, 0x070c14, 1);
+    this.bgGraphics.fillRect(0, 0, w, h);
 
-    // Subtle wooden board lines
-    bg.lineStyle(1.5, 0x1a2b47, 0.35);
+    this.bgGraphics.lineStyle(1.5, 0x1a2b47, 0.35);
     for (let y = 65; y < h; y += 80) {
-      bg.lineBetween(0, y, w, y);
+      this.bgGraphics.lineBetween(0, y, w, y);
     }
   }
 
@@ -106,8 +119,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startFruitSpawning(): void {
-    // Initial launch delay
-    this.time.delayedCall(600, () => {
+    this.time.delayedCall(500, () => {
       this.scheduleNextWave();
     });
   }
@@ -115,9 +127,8 @@ export class GameScene extends Phaser.Scene {
   private scheduleNextWave(): void {
     if (this.isGameOver) return;
 
-    // Difficulty scaling based on score
     const currentScore = this.scoreManager.getScore();
-    const intervalFactor = Math.max(0.55, 1 - (currentScore * 0.003));
+    const intervalFactor = Math.max(0.5, 1 - currentScore * 0.003);
     const nextDelay = Phaser.Math.Between(
       GAME_CONSTANTS.BASE_SPAWN_INTERVAL * intervalFactor,
       (GAME_CONSTANTS.BASE_SPAWN_INTERVAL + 600) * intervalFactor
@@ -133,13 +144,14 @@ export class GameScene extends Phaser.Scene {
   private spawnWave(): void {
     if (this.isGameOver || this.hud.getIsPaused()) return;
 
-    const width = this.cameras.main.width;
-    const height = this.cameras.main.height;
+    const width = this.scale.width;
+    const height = this.scale.height;
 
-    // Number of fruits per wave: 1 to 4 depending on score & mode
-    const count = Phaser.Math.Between(1, this.mode === 'zen' ? 3 : (this.scoreManager.getScore() > 40 ? 4 : 3));
+    const count = Phaser.Math.Between(
+      1,
+      this.mode === 'zen' ? 4 : this.scoreManager.getScore() > 30 ? 4 : 3
+    );
 
-    // Determine if bomb should spawn alongside fruits
     let spawnBomb = false;
     if (this.mode === 'classic') {
       const bombChance = Math.min(0.35, 0.15 + this.scoreManager.getScore() * 0.003);
@@ -151,11 +163,9 @@ export class GameScene extends Phaser.Scene {
     const configs = Object.values(FRUIT_CONFIGS);
 
     for (let i = 0; i < count; i++) {
-      // Pick random fruit weighted
       const fruitConfig = this.pickRandomFruit(configs);
 
-      // Stagger spawn x positions
-      const spawnX = Phaser.Math.Between(width * 0.15, width * 0.85);
+      const spawnX = Phaser.Math.Between(width * 0.12, width * 0.88);
       const spawnY = height + 45;
 
       const fruit = new Fruit(
@@ -167,34 +177,31 @@ export class GameScene extends Phaser.Scene {
         (missedFruit) => this.handleMissedFruit(missedFruit)
       );
 
-      // Launch physics toward central screen
-      const targetX = width * 0.5 + (Math.random() - 0.5) * (width * 0.4);
-      const targetApexY = height * 0.22 + (Math.random() - 0.5) * 80;
+      const targetX = width * 0.5 + (Math.random() - 0.5) * (width * 0.5);
+      const targetApexY = height * 0.20 + (Math.random() - 0.5) * 90;
 
-      // Calculate required velocity
       const gravity = GAME_CONSTANTS.GRAVITY;
       const vy = -Math.sqrt(2 * gravity * (spawnY - targetApexY));
       const tApex = -vy / gravity;
       const vx = (targetX - spawnX) / tApex;
-      const angular = Phaser.Math.Between(-180, 180);
+      const angular = Phaser.Math.Between(-200, 200);
 
       fruit.launch(vx, vy, angular);
       this.activeFruits.push(fruit);
     }
 
-    // Spawn Bomb if active
     if (spawnBomb) {
       const bombX = Phaser.Math.Between(width * 0.2, width * 0.8);
       const bombY = height + 50;
 
       const bomb = new Bomb(this, bombX, bombY, this.particleManager);
-      const targetX = width * 0.5 + (Math.random() - 0.5) * (width * 0.3);
-      const targetApexY = height * 0.26;
+      const targetX = width * 0.5 + (Math.random() - 0.5) * (width * 0.4);
+      const targetApexY = height * 0.25;
       const vy = -Math.sqrt(2 * GAME_CONSTANTS.GRAVITY * (bombY - targetApexY));
       const tApex = -vy / GAME_CONSTANTS.GRAVITY;
       const vx = (targetX - bombX) / tApex;
 
-      bomb.launch(vx, vy, Phaser.Math.Between(-120, 120));
+      bomb.launch(vx, vy, Phaser.Math.Between(-140, 140));
       this.activeBombs.push(bomb);
     }
   }
@@ -231,15 +238,12 @@ export class GameScene extends Phaser.Scene {
     const now = this.time.now;
     this.bladeTrail.update();
 
-    // Clean inactive fruits / bombs
     this.activeFruits = this.activeFruits.filter((f) => f.active && !f.isSliced);
     this.activeBombs = this.activeBombs.filter((b) => b.active && !b.isDetonated);
 
-    // Update entities
     this.activeFruits.forEach((f) => f.update());
     this.activeBombs.forEach((b) => b.update());
 
-    // Check slice collisions against Fruits
     for (const fruit of this.activeFruits) {
       if (fruit.isSliced) continue;
 
@@ -251,7 +255,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Check slice collisions against Bombs
     for (const bomb of this.activeBombs) {
       if (bomb.isDetonated) continue;
 
@@ -263,7 +266,6 @@ export class GameScene extends Phaser.Scene {
           this.triggerGameOver('Bomb Exploded!');
           return;
         } else if (this.mode === 'time') {
-          // Time penalty: lose 10 seconds & 10 points
           this.remainingTime = Math.max(1, this.remainingTime - 10);
           this.scoreManager.deductPoints(10);
           this.hud.updateTimer(this.remainingTime);
@@ -272,7 +274,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Update score combo decay
     this.scoreManager.update(now, this.lastSlicePos.x, this.lastSlicePos.y);
   }
 
@@ -280,7 +281,6 @@ export class GameScene extends Phaser.Scene {
     if (this.isGameOver) return;
     this.isGameOver = true;
 
-    // Stop timers
     if (this.timerEvent) this.timerEvent.remove();
     if (this.spawnEvent) this.spawnEvent.remove();
 
@@ -290,7 +290,6 @@ export class GameScene extends Phaser.Scene {
     const isNewHigh = this.scoreManager.saveIfBest();
     const bestScore = this.scoreManager.getBestScore();
 
-    // Brief freeze then transition to GameOverScene
     this.cameras.main.flash(350, 255, 50, 50);
     this.time.delayedCall(800, () => {
       this.scene.start('GameOverScene', {
@@ -325,4 +324,3 @@ export class GameScene extends Phaser.Scene {
     this.cleanup();
   }
 }
-

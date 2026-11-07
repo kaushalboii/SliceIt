@@ -22,7 +22,7 @@ export class Bomb extends Phaser.Physics.Arcade.Image {
 
     // Fuse spark emitter
     this.sparkTimer = scene.time.addEvent({
-      delay: 70,
+      delay: 65,
       loop: true,
       callback: () => this.emitFuseSpark()
     });
@@ -70,7 +70,9 @@ export class Bomb extends Phaser.Physics.Arcade.Image {
       this.hasReachedApex = true;
     }
 
-    if (this.hasReachedApex && this.y > GAME_CONSTANTS.CANVAS_HEIGHT + 70) {
+    const screenHeight = this.scene.scale.height;
+
+    if (this.hasReachedApex && this.y > screenHeight + 70) {
       this.cleanup();
       this.destroy();
     }
@@ -98,4 +100,3 @@ export class Bomb extends Phaser.Physics.Arcade.Image {
     super.destroy(fromScene);
   }
 }
-

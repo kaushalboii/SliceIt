@@ -46,8 +46,10 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
       this.hasReachedApex = true;
     }
 
+    const screenHeight = this.scene.scale.height;
+
     // Check if fallen below screen
-    if (this.hasReachedApex && this.y > GAME_CONSTANTS.CANVAS_HEIGHT + 70) {
+    if (this.hasReachedApex && this.y > screenHeight + 70) {
       if (this.onMissCallback) {
         this.onMissCallback(this);
       }
@@ -84,7 +86,7 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
     sliceAngle: number
   ): void {
     const normalAngle = sliceAngle + Math.PI / 2;
-    const separationSpeed = 160;
+    const separationSpeed = 190;
 
     // Left Half
     const halfLeft = this.scene.physics.add.image(x, y, this.fruitConfig.textureHalfLeft);
@@ -94,7 +96,7 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
       parentVel.x * 0.5 + Math.cos(normalAngle) * separationSpeed,
       parentVel.y * 0.6 + Math.sin(normalAngle) * separationSpeed
     );
-    halfLeft.setAngularVelocity(-280);
+    halfLeft.setAngularVelocity(-320);
     halfLeft.setGravityY(GAME_CONSTANTS.GRAVITY * 1.1);
 
     // Right Half
@@ -105,17 +107,13 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
       parentVel.x * 0.5 - Math.cos(normalAngle) * separationSpeed,
       parentVel.y * 0.6 - Math.sin(normalAngle) * separationSpeed
     );
-    halfRight.setAngularVelocity(280);
+    halfRight.setAngularVelocity(320);
     halfRight.setGravityY(GAME_CONSTANTS.GRAVITY * 1.1);
 
     // Fade and destroy halves when they drop below screen
-    const cleanupHalves = () => {
-      this.scene.time.delayedCall(1600, () => {
-        if (halfLeft.active) halfLeft.destroy();
-        if (halfRight.active) halfRight.destroy();
-      });
-    };
-    cleanupHalves();
+    this.scene.time.delayedCall(1600, () => {
+      if (halfLeft.active) halfLeft.destroy();
+      if (halfRight.active) halfRight.destroy();
+    });
   }
 }
-

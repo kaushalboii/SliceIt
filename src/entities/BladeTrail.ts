@@ -17,6 +17,8 @@ export class BladeTrail {
   private lastSwooshTime: number = 0;
   private activeColor: number = 0x00f0ff; // Neon cyan blade
   private activeCoreColor: number = 0xffffff;
+  private isComboActive: boolean = false;
+  private comboResetTimer?: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -50,9 +52,14 @@ export class BladeTrail {
         }
 
         // Trigger swoosh sound if blade is moving fast enough
-        if (this.currentSpeed > GAME_CONSTANTS.BLADE_MIN_VELOCITY && now - this.lastSwooshTime > 260) {
+        if (this.currentSpeed > GAME_CONSTANTS.BLADE_MIN_VELOCITY && now - this.lastSwooshTime > 220) {
           SoundManager.getInstance().playSwoosh();
           this.lastSwooshTime = now;
+        }
+
+        // Emit subtle sparks on high speed slice
+        if (this.currentSpeed > 600 && Math.random() < 0.35) {
+          this.emitTipSpark(pointer.x, pointer.y);
         }
       }
 
@@ -65,6 +72,34 @@ export class BladeTrail {
 
     this.scene.input.on('pointerout', () => {
       this.isPointerDown = false;
+    });
+  }
+
+  private emitTipSpark(x: number, y: number): void {
+    const spark = this.scene.add.image(x, y, 'blade_spark');
+    spark.setDepth(105);
+    spark.setTint(this.isComboActive ? 0xffd54f : 0x00f0ff);
+    spark.setScale(Phaser.Math.FloatBetween(0.4, 0.7));
+
+    this.scene.tweens.add({
+      targets: spark,
+      alpha: 0,
+      scale: 0.1,
+      duration: 180,
+      onComplete: () => spark.destroy()
+    });
+  }
+
+  public activateComboFlare(): void {
+    this.isComboActive = true;
+    this.activeColor = 0xffa000; // Blazing gold fiery blade
+    this.activeCoreColor = 0xfff9c4;
+
+    if (this.comboResetTimer) this.comboResetTimer.remove();
+    this.comboResetTimer = this.scene.time.delayedCall(700, () => {
+      this.isComboActive = false;
+      this.activeColor = 0x00f0ff;
+      this.activeCoreColor = 0xffffff;
     });
   }
 
@@ -82,20 +117,20 @@ export class BladeTrail {
       const p1 = this.points[i];
       const p2 = this.points[i + 1];
 
-      const ageRatio = (now - p2.time) / GAME_CONSTANTS.BLADE_LIFETIME_MS; // 0 (new) to 1 (old)
+      const ageRatio = (now - p2.time) / GAME_CONSTANTS.BLADE_LIFETIME_MS;
       const alpha = Math.max(0, 1 - ageRatio);
-      const width = (1 - ageRatio) * 12;
+      const width = (1 - ageRatio) * (this.isComboActive ? 18 : 13);
 
-      // Outer neon glow
-      this.graphics.lineStyle(width * 2, this.activeColor, alpha * 0.35);
+      // Outer neon flare
+      this.graphics.lineStyle(width * 2.2, this.activeColor, alpha * 0.35);
       this.graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
 
       // Mid blade
-      this.graphics.lineStyle(width * 1.1, this.activeColor, alpha * 0.7);
+      this.graphics.lineStyle(width * 1.2, this.activeColor, alpha * 0.75);
       this.graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
 
       // Core white sharp edge
-      this.graphics.lineStyle(Math.max(1, width * 0.5), this.activeCoreColor, alpha * 0.95);
+      this.graphics.lineStyle(Math.max(1, width * 0.5), this.activeCoreColor, alpha * 0.98);
       this.graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
     }
   }
@@ -109,7 +144,7 @@ export class BladeTrail {
     const dy = p2.y - p1.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < 4) return null;
+    if (dist < 3) return null;
 
     const angle = Math.atan2(dy, dx);
     return {
@@ -120,14 +155,12 @@ export class BladeTrail {
     };
   }
 
-  // Segment to circle intersection test
   public checkSliceIntersection(circleX: number, circleY: number, radius: number): { hit: boolean; angle: number } | null {
     const cut = this.getRecentCutSegment();
     if (!cut) return null;
 
     // Must exceed minimum slicing speed
     if (cut.speed < GAME_CONSTANTS.BLADE_MIN_VELOCITY && this.points.length > 2) {
-      // Speed check
       return null;
     }
 
@@ -138,7 +171,6 @@ export class BladeTrail {
 
     if (lenSq === 0) return null;
 
-    // Project circle center onto segment
     const t = Math.max(0, Math.min(1, ((circleX - p1.x) * dx + (circleY - p1.y) * dy) / lenSq));
     const projX = p1.x + t * dx;
     const projY = p1.y + t * dy;
@@ -152,14 +184,13 @@ export class BladeTrail {
     return null;
   }
 
-  public setBladeTheme(outerColor: number, coreColor: number = 0xffffff): void {
-    this.activeColor = outerColor;
-    this.activeCoreColor = coreColor;
+  public getIsPointerDown(): boolean {
+    return this.isPointerDown;
   }
 
   public destroy(): void {
+    if (this.comboResetTimer) this.comboResetTimer.remove();
     this.graphics.destroy();
     this.points = [];
   }
 }
-

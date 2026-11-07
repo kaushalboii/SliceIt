@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { GAME_CONSTANTS } from './config/GameConfig';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
@@ -8,12 +7,13 @@ import { GameOverScene } from './scenes/GameOverScene';
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game-container',
-  width: GAME_CONSTANTS.CANVAS_WIDTH,
-  height: GAME_CONSTANTS.CANVAS_HEIGHT,
+  width: window.innerWidth,
+  height: window.innerHeight,
   backgroundColor: '#090f1a',
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    expandParent: true
   },
   physics: {
     default: 'arcade',
@@ -34,4 +34,3 @@ const config: Phaser.Types.Core.GameConfig = {
 window.addEventListener('DOMContentLoaded', () => {
   new Phaser.Game(config);
 });
-
