@@ -4,6 +4,7 @@ import { ParticleManager } from '../systems/ParticleManager';
 import { SoundManager } from '../audio/SoundManager';
 import { GameMode, FRUIT_CONFIGS, BLADE_SKINS } from '../config/GameConfig';
 import { toggleFullscreen } from '../utils/fullscreen';
+import { CustomObjectManager } from '../systems/CustomObjectManager';
 
 interface ModeFruit {
   mode: GameMode;
@@ -234,6 +235,32 @@ export class MenuScene extends Phaser.Scene {
       SoundManager.getInstance().playClick();
       const nextSkin = this.bladeTrail.cycleNextSkin();
       this.bladeButton.setText(`${BLADE_SKINS[nextSkin].icon} BLADE: ${BLADE_SKINS[nextSkin].name.toUpperCase()}`);
+    });
+
+    // Custom Object Uploader Button
+    const uploadBtn = this.add.text(230, 24, '📷 CUSTOM ITEM', {
+      fontFamily: 'Outfit, sans-serif',
+      fontSize: '14px',
+      fontStyle: 'bold',
+      color: '#ffd600',
+      backgroundColor: '#261b00',
+      padding: { left: 14, right: 14, top: 8, bottom: 8 }
+    }).setOrigin(0, 0).setDepth(50).setInteractive({ useHandCursor: true });
+
+    uploadBtn.on('pointerdown', () => {
+      SoundManager.getInstance().playClick();
+      CustomObjectManager.getInstance().openImagePicker(
+        this,
+        () => {
+          uploadBtn.setText('✅ ITEM LOADED');
+          uploadBtn.setBackgroundColor('#003314');
+          uploadBtn.setColor('#00e676');
+          this.particleManager.showPowerUpBanner('ITEM LOADED!', 'Ready to Slice in Game!', '#ffd600');
+        },
+        (err) => {
+          console.warn(err);
+        }
+      );
     });
 
     // Top Right: Sound & Fullscreen

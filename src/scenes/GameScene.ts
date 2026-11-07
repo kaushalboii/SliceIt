@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { GameMode, GAME_CONSTANTS, FRUIT_CONFIGS, FruitConfig } from '../config/GameConfig';
+import { GameMode, GAME_CONSTANTS, FRUIT_CONFIGS, FruitConfig, PowerUpType } from '../config/GameConfig';
 import { Fruit } from '../entities/Fruit';
 import { Bomb } from '../entities/Bomb';
 import { BladeTrail } from '../entities/BladeTrail';
 import { ParticleManager } from '../systems/ParticleManager';
 import { ScoreManager } from '../systems/ScoreManager';
+import { CustomObjectManager } from '../systems/CustomObjectManager';
 import { HUD } from '../ui/HUD';
 import { SoundManager } from '../audio/SoundManager';
 
@@ -26,6 +27,11 @@ export class GameScene extends Phaser.Scene {
   private isGameOver: boolean = false;
   private lastSlicePos: { x: number; y: number } = { x: 500, y: 325 };
   private bgGraphics!: Phaser.GameObjects.Graphics;
+
+  private isDoublePointsActive: boolean = false;
+  private doublePointsTimer?: Phaser.Time.TimerEvent;
+  private isFreezeActive: boolean = false;
+  private freezeTimer?: Phaser.Time.TimerEvent;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -162,6 +168,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     const configs = Object.values(FRUIT_CONFIGS);
+    const customConfig = CustomObjectManager.getInstance().getCustomConfig();
+    if (customConfig) {
+      configs.push(customConfig);
+    }
 
     for (let i = 0; i < count; i++) {
       const fruitConfig = this.pickRandomFruit(configs);
@@ -254,7 +264,23 @@ export class GameScene extends Phaser.Scene {
       if (hit) {
         this.lastSlicePos = { x: fruit.x, y: fruit.y };
         const result = fruit.slice(hit.angle);
-        this.scoreManager.addFruitSlice(result.points, fruit.x, fruit.y, now);
+
+        let points = result.points;
+        if (this.isDoublePointsActive) {
+          points *= 2;
+        }
+
+        // Critical Slice chance (1 in 20)
+        if (Math.random() < 0.05 && !result.config.isSpecial) {
+          points += 10;
+          this.particleManager.showCriticalPopup(fruit.x, fruit.y);
+        }
+
+        this.scoreManager.addFruitSlice(points, fruit.x, fruit.y, now);
+
+        if (result.config.powerUp) {
+          this.handlePowerUp(result.config.powerUp);
+        }
       }
     }
 
@@ -279,6 +305,55 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.scoreManager.update(now, this.lastSlicePos.x, this.lastSlicePos.y);
+  }
+
+  private handlePowerUp(type: PowerUpType): void {
+    if (type === 'freeze') {
+      this.isFreezeActive = true;
+      this.physics.world.timeScale = 2.0;
+      this.particleManager.showPowerUpBanner('❄️ FREEZE TIME!', 'Physics Slowed 50%!', '#80d8ff');
+      if (this.freezeTimer) this.freezeTimer.remove();
+      this.freezeTimer = this.time.delayedCall(GAME_CONSTANTS.FREEZE_DURATION_SEC * 1000, () => {
+        this.isFreezeActive = false;
+        this.physics.world.timeScale = 1.0;
+      });
+    } else if (type === 'frenzy') {
+      this.particleManager.showPowerUpBanner('⚡ FRUIT FRENZY!', 'Massive Fruit Torrent!', '#d500f9');
+      this.startFrenzyTorrent();
+    } else if (type === 'double') {
+      this.isDoublePointsActive = true;
+      this.particleManager.showPowerUpBanner('⭐ 2X DOUBLE POINTS!', 'Double Score Active!', '#ffd600');
+      if (this.doublePointsTimer) this.doublePointsTimer.remove();
+      this.doublePointsTimer = this.time.delayedCall(GAME_CONSTANTS.DOUBLE_POINTS_DURATION_SEC * 1000, () => {
+        this.isDoublePointsActive = false;
+      });
+    }
+  }
+
+  private startFrenzyTorrent(): void {
+    const width = 1280;
+    const height = 720;
+    const configs = Object.values(FRUIT_CONFIGS).filter((c) => !c.isSpecial);
+
+    this.time.addEvent({
+      delay: 240,
+      repeat: 14,
+      callback: () => {
+        if (this.isGameOver) return;
+        const fromLeft = Math.random() < 0.5;
+        const spawnX = fromLeft ? -40 : width + 40;
+        const spawnY = Phaser.Math.Between(height * 0.4, height * 0.7);
+
+        const fruitConfig = Phaser.Utils.Array.GetRandom(configs);
+        const fruit = new Fruit(this, spawnX, spawnY, fruitConfig, this.particleManager);
+
+        const vx = fromLeft ? Phaser.Math.Between(450, 750) : -Phaser.Math.Between(450, 750);
+        const vy = -Phaser.Math.Between(480, 780);
+
+        fruit.launch(vx, vy, Phaser.Math.Between(-250, 250));
+        this.activeFruits.push(fruit);
+      }
+    });
   }
 
   private triggerGameOver(reason: string): void {
@@ -317,6 +392,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private cleanup(): void {
+    this.physics.world.timeScale = 1.0;
+    this.isDoublePointsActive = false;
+    this.isFreezeActive = false;
+    if (this.freezeTimer) this.freezeTimer.remove();
+    if (this.doublePointsTimer) this.doublePointsTimer.remove();
     if (this.timerEvent) this.timerEvent.remove();
     if (this.spawnEvent) this.spawnEvent.remove();
     this.bladeTrail.destroy();

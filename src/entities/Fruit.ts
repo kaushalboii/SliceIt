@@ -52,8 +52,17 @@ export class Fruit extends Phaser.Physics.Arcade.Image {
       this.hasReachedApex = true;
     }
 
+    const screenHeight = this.scene.scale.height;
+
+    if (this.specialAura) {
+      this.specialAura.clear();
+      const pulse = 1 + 0.15 * Math.sin(this.scene.time.now * 0.008);
+      this.specialAura.fillStyle(this.fruitConfig.accentColor, 0.4);
+      this.specialAura.fillCircle(this.x, this.y, (this.fruitConfig.radius + 14) * pulse);
+    }
+
     // Check if fallen below screen
-    if (this.hasReachedApex && this.y > 790) {
+    if (this.hasReachedApex && this.y > screenHeight + 70) {
       if (this.specialAura) {
         this.specialAura.destroy();
         this.specialAura = undefined;
