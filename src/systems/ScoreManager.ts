@@ -6,21 +6,27 @@ export class ScoreManager {
   private mode: GameMode;
   private currentScore: number = 0;
   private currentCombo: number = 0;
+  private sliceStreak: number = 0;
   private lastSliceTime: number = 0;
   private particleManager: ParticleManager;
   private onScoreChanged?: (score: number) => void;
+  private onStreakChanged?: (streak: number) => void;
   private onComboTriggered?: (comboCount: number, bonus: number) => void;
 
   constructor(
     mode: GameMode,
     particleManager: ParticleManager,
-    onScoreChanged?: (score: number) => void,
-    onComboTriggered?: (comboCount: number, bonus: number) => void
+    callbacks?: {
+      onScoreChanged?: (score: number) => void;
+      onStreakChanged?: (streak: number) => void;
+      onComboTriggered?: (comboCount: number, bonus: number) => void;
+    }
   ) {
     this.mode = mode;
     this.particleManager = particleManager;
-    this.onScoreChanged = onScoreChanged;
-    this.onComboTriggered = onComboTriggered;
+    this.onScoreChanged = callbacks?.onScoreChanged;
+    this.onStreakChanged = callbacks?.onStreakChanged;
+    this.onComboTriggered = callbacks?.onComboTriggered;
   }
 
   public addFruitSlice(basePoints: number, x: number, y: number, time: number): void {
@@ -33,10 +39,24 @@ export class ScoreManager {
       this.currentCombo = 1;
     }
 
+    this.sliceStreak++;
     this.lastSliceTime = time;
     this.currentScore += basePoints;
 
     this.particleManager.showScorePopup(x, y, `+${basePoints}`);
+
+    // Streak milestone celebrations
+    if (this.sliceStreak === 10) {
+      this.particleManager.showScorePopup(x, y - 40, '🔥 10 STREAK!', '#ff9100');
+    } else if (this.sliceStreak === 25) {
+      this.particleManager.showScorePopup(x, y - 40, '⚡ 25 MEGA STREAK!', '#00e5ff');
+    } else if (this.sliceStreak === 50) {
+      this.particleManager.showScorePopup(x, y - 40, '👑 50 GODLIKE!', '#ffd600');
+    }
+
+    if (this.onStreakChanged) {
+      this.onStreakChanged(this.sliceStreak);
+    }
 
     if (this.onScoreChanged) {
       this.onScoreChanged(this.currentScore);
@@ -54,6 +74,13 @@ export class ScoreManager {
     if (this.currentCombo > 1) {
       this.finalizeCombo(lastSliceX, lastSliceY);
       this.currentCombo = 0;
+    }
+  }
+
+  public resetStreak(): void {
+    this.sliceStreak = 0;
+    if (this.onStreakChanged) {
+      this.onStreakChanged(this.sliceStreak);
     }
   }
 
@@ -84,6 +111,7 @@ export class ScoreManager {
 
   public deductPoints(amount: number): void {
     this.currentScore = Math.max(0, this.currentScore - amount);
+    this.resetStreak();
     if (this.onScoreChanged) {
       this.onScoreChanged(this.currentScore);
     }
@@ -91,6 +119,10 @@ export class ScoreManager {
 
   public getScore(): number {
     return this.currentScore;
+  }
+
+  public getStreak(): number {
+    return this.sliceStreak;
   }
 
   public getBestScore(): number {

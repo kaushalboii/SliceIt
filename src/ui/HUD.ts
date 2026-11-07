@@ -1,15 +1,20 @@
 import Phaser from 'phaser';
-import { GameMode, GAME_CONSTANTS } from '../config/GameConfig';
+import { GameMode, GAME_CONSTANTS, BladeSkin, BLADE_SKINS } from '../config/GameConfig';
 import { SoundManager } from '../audio/SoundManager';
+import { BladeTrail } from '../entities/BladeTrail';
 
 export class HUD {
   private scene: Phaser.Scene;
   private mode: GameMode;
+  private bladeTrail: BladeTrail;
   private scoreText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
+  private streakText!: Phaser.GameObjects.Text;
+  private streakBadge!: Phaser.GameObjects.Container;
   private timerText?: Phaser.GameObjects.Text;
   private lifeIcons: Phaser.GameObjects.Text[] = [];
   private soundButton!: Phaser.GameObjects.Text;
+  private bladeButton!: Phaser.GameObjects.Text;
   private fullscreenButton!: Phaser.GameObjects.Text;
   private pauseButton!: Phaser.GameObjects.Text;
   private pauseOverlay?: Phaser.GameObjects.Container;
@@ -24,6 +29,7 @@ export class HUD {
   constructor(
     scene: Phaser.Scene,
     mode: GameMode,
+    bladeTrail: BladeTrail,
     callbacks?: {
       onResume?: () => void;
       onRestart?: () => void;
@@ -32,6 +38,7 @@ export class HUD {
   ) {
     this.scene = scene;
     this.mode = mode;
+    this.bladeTrail = bladeTrail;
     this.onResumeCallback = callbacks?.onResume;
     this.onRestartCallback = callbacks?.onRestart;
     this.onQuitCallback = callbacks?.onQuit;
@@ -76,14 +83,46 @@ export class HUD {
       padding: { left: 8, right: 8, top: 2, bottom: 2 }
     });
 
-    this.scoreContainer.add([fruitIcon, this.scoreText, this.bestText, modeTag]);
+    // Slice Streak Badge
+    this.streakBadge = this.scene.add.container(52, 98);
+    const streakBg = this.scene.add.rectangle(0, 0, 115, 22, 0x1f1400, 0.85);
+    streakBg.setStrokeStyle(1.5, 0xffa000);
+    streakBg.setOrigin(0, 0.5);
+
+    this.streakText = this.scene.add.text(10, 0, '🔥 STREAK: 0', {
+      fontFamily: 'Outfit, sans-serif',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      color: '#ffb300'
+    }).setOrigin(0, 0.5);
+
+    this.streakBadge.add([streakBg, this.streakText]);
+
+    this.scoreContainer.add([fruitIcon, this.scoreText, this.bestText, modeTag, this.streakBadge]);
 
     // --- TOP RIGHT CONTROLS ---
     this.rightContainer = this.scene.add.container(width - 24, 20);
     this.rightContainer.setDepth(90);
 
+    // Blade Skin Switcher Button
+    const activeSkin = this.bladeTrail.getBladeSkin();
+    this.bladeButton = this.scene.add.text(-135, 8, `${BLADE_SKINS[activeSkin].icon} ${BLADE_SKINS[activeSkin].name.toUpperCase()}`, {
+      fontFamily: 'Outfit, sans-serif',
+      fontSize: '13px',
+      fontStyle: 'bold',
+      color: '#ffffff',
+      backgroundColor: '#102542',
+      padding: { left: 8, right: 8, top: 4, bottom: 4 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    this.bladeButton.on('pointerdown', () => {
+      SoundManager.getInstance().playClick();
+      const nextSkin = this.bladeTrail.cycleNextSkin();
+      this.bladeButton.setText(`${BLADE_SKINS[nextSkin].icon} ${BLADE_SKINS[nextSkin].name.toUpperCase()}`);
+    });
+
     // Fullscreen Toggle Button
-    this.fullscreenButton = this.scene.add.text(-80, 8, '⛶', {
+    this.fullscreenButton = this.scene.add.text(-50, 8, '⛶', {
       fontSize: '28px',
       color: '#ffffff'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -99,7 +138,7 @@ export class HUD {
 
     // Audio Mute Button
     const isMuted = SoundManager.getInstance().getIsMuted();
-    this.soundButton = this.scene.add.text(-40, 8, isMuted ? '🔇' : '🔊', {
+    this.soundButton = this.scene.add.text(-15, 8, isMuted ? '🔇' : '🔊', {
       fontSize: '28px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -109,7 +148,7 @@ export class HUD {
     });
 
     // Pause Button
-    this.pauseButton = this.scene.add.text(0, 8, '⏸', {
+    this.pauseButton = this.scene.add.text(20, 8, '⏸', {
       fontSize: '28px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -117,11 +156,11 @@ export class HUD {
       this.togglePause();
     });
 
-    this.rightContainer.add([this.fullscreenButton, this.soundButton, this.pauseButton]);
+    this.rightContainer.add([this.bladeButton, this.fullscreenButton, this.soundButton, this.pauseButton]);
 
     // Mode specific display (Classic = 3 Lives, Zen/Time = Timer)
     if (this.mode === 'classic') {
-      this.livesContainer = this.scene.add.container(width - 220, 20);
+      this.livesContainer = this.scene.add.container(width - 250, 20);
       this.livesContainer.setDepth(90);
 
       for (let i = 0; i < GAME_CONSTANTS.CLASSIC_MAX_LIVES; i++) {
@@ -154,7 +193,7 @@ export class HUD {
         this.rightContainer.setX(width - 24);
       }
       if (this.livesContainer) {
-        this.livesContainer.setX(width - 220);
+        this.livesContainer.setX(width - 250);
       }
       if (this.timerText) {
         this.timerText.setX(width / 2);
@@ -171,6 +210,18 @@ export class HUD {
       yoyo: true,
       ease: 'Quad.easeInOut'
     });
+  }
+
+  public updateStreak(newStreak: number): void {
+    this.streakText.setText(`🔥 STREAK: ${newStreak}`);
+    if (newStreak > 0) {
+      this.scene.tweens.add({
+        targets: this.streakBadge,
+        scale: 1.15,
+        duration: 100,
+        yoyo: true
+      });
+    }
   }
 
   public updateLives(remainingLives: number): void {
@@ -237,7 +288,7 @@ export class HUD {
 
     const backdrop = this.scene.add.rectangle(w / 2, h / 2, w, h, 0x070b14, 0.88);
 
-    const title = this.scene.add.text(w / 2, h / 2 - 120, 'GAME PAUSED', {
+    const title = this.scene.add.text(w / 2, h / 2 - 130, 'GAME PAUSED', {
       fontFamily: 'Luckiest Guy, Outfit, sans-serif',
       fontSize: '56px',
       color: '#ffffff',
@@ -245,23 +296,37 @@ export class HUD {
       strokeThickness: 8
     }).setOrigin(0.5);
 
-    const resumeBtn = this.createButton(w / 2, h / 2 - 15, 'RESUME', '#00e676', () => {
+    // Blade Skin Switcher in Pause menu
+    const activeSkin = this.bladeTrail.getBladeSkin();
+    const bladeSkinBtn = this.createButton(
+      w / 2,
+      h / 2 - 50,
+      `BLADE: ${BLADE_SKINS[activeSkin].icon} ${BLADE_SKINS[activeSkin].name}`,
+      '#ffd54f',
+      () => {
+        const nextSkin = this.bladeTrail.cycleNextSkin();
+        (bladeSkinBtn.getAt(1) as Phaser.GameObjects.Text).setText(`BLADE: ${BLADE_SKINS[nextSkin].icon} ${BLADE_SKINS[nextSkin].name}`);
+        this.bladeButton.setText(`${BLADE_SKINS[nextSkin].icon} ${BLADE_SKINS[nextSkin].name.toUpperCase()}`);
+      }
+    );
+
+    const resumeBtn = this.createButton(w / 2, h / 2 + 15, 'RESUME', '#00e676', () => {
       this.resumeGame();
     });
 
-    const restartBtn = this.createButton(w / 2, h / 2 + 55, 'RESTART', '#ff9800', () => {
+    const restartBtn = this.createButton(w / 2, h / 2 + 80, 'RESTART', '#ff9800', () => {
       if (this.onRestartCallback) {
         this.onRestartCallback();
       }
     });
 
-    const quitBtn = this.createButton(w / 2, h / 2 + 125, 'MAIN MENU', '#e0e0e0', () => {
+    const quitBtn = this.createButton(w / 2, h / 2 + 145, 'MAIN MENU', '#e0e0e0', () => {
       if (this.onQuitCallback) {
         this.onQuitCallback();
       }
     });
 
-    this.pauseOverlay.add([backdrop, title, resumeBtn, restartBtn, quitBtn]);
+    this.pauseOverlay.add([backdrop, title, bladeSkinBtn, resumeBtn, restartBtn, quitBtn]);
   }
 
   public resumeGame(): void {
@@ -282,13 +347,13 @@ export class HUD {
   private createButton(x: number, y: number, text: string, color: string, onClick: () => void): Phaser.GameObjects.Container {
     const container = this.scene.add.container(x, y);
 
-    const bg = this.scene.add.rectangle(0, 0, 240, 52, 0x16253d, 0.95);
+    const bg = this.scene.add.rectangle(0, 0, 260, 48, 0x16253d, 0.95);
     bg.setStrokeStyle(2, 0x4fc3f7);
     bg.setInteractive({ useHandCursor: true });
 
     const label = this.scene.add.text(0, 0, text, {
       fontFamily: 'Luckiest Guy, Outfit, sans-serif',
-      fontSize: '24px',
+      fontSize: '20px',
       color: color
     }).setOrigin(0.5);
 

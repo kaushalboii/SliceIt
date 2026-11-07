@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_CONSTANTS } from '../config/GameConfig';
+import { GAME_CONSTANTS, BladeSkin, BLADE_SKINS } from '../config/GameConfig';
 import { SoundManager } from '../audio/SoundManager';
 
 interface TrailPoint {
@@ -15,17 +15,46 @@ export class BladeTrail {
   private isPointerDown: boolean = false;
   private currentSpeed: number = 0;
   private lastSwooshTime: number = 0;
-  private activeColor: number = 0x00f0ff; // Neon cyan blade
+  private currentSkin: BladeSkin = 'cyber';
+  private activeColor: number = 0x00f0ff;
   private activeCoreColor: number = 0xffffff;
   private isComboActive: boolean = false;
   private comboResetTimer?: Phaser.Time.TimerEvent;
+  private rainbowHue: number = 0;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     this.graphics = scene.add.graphics();
     this.graphics.setDepth(100);
 
+    const savedSkin = localStorage.getItem('slice_it_blade_skin') as BladeSkin | null;
+    if (savedSkin && BLADE_SKINS[savedSkin]) {
+      this.setBladeSkin(savedSkin);
+    } else {
+      this.setBladeSkin('cyber');
+    }
+
     this.setupInput();
+  }
+
+  public setBladeSkin(skin: BladeSkin): void {
+    this.currentSkin = skin;
+    localStorage.setItem('slice_it_blade_skin', skin);
+    const cfg = BLADE_SKINS[skin];
+    this.activeColor = cfg.outerColor;
+    this.activeCoreColor = cfg.coreColor;
+  }
+
+  public getBladeSkin(): BladeSkin {
+    return this.currentSkin;
+  }
+
+  public cycleNextSkin(): BladeSkin {
+    const skins: BladeSkin[] = ['cyber', 'flame', 'jade', 'rainbow'];
+    const currentIdx = skins.indexOf(this.currentSkin);
+    const nextSkin = skins[(currentIdx + 1) % skins.length];
+    this.setBladeSkin(nextSkin);
+    return nextSkin;
   }
 
   private setupInput(): void {
@@ -51,14 +80,14 @@ export class BladeTrail {
           this.currentSpeed = dist / dt;
         }
 
-        // Trigger swoosh sound if blade is moving fast enough
+        // Swoosh sound on swift cut
         if (this.currentSpeed > GAME_CONSTANTS.BLADE_MIN_VELOCITY && now - this.lastSwooshTime > 220) {
           SoundManager.getInstance().playSwoosh();
           this.lastSwooshTime = now;
         }
 
-        // Emit subtle sparks on high speed slice
-        if (this.currentSpeed > 600 && Math.random() < 0.35) {
+        // Particle sparks on quick swipe
+        if (this.currentSpeed > 550 && Math.random() < 0.4) {
           this.emitTipSpark(pointer.x, pointer.y);
         }
       }
@@ -78,13 +107,24 @@ export class BladeTrail {
   private emitTipSpark(x: number, y: number): void {
     const spark = this.scene.add.image(x, y, 'blade_spark');
     spark.setDepth(105);
-    spark.setTint(this.isComboActive ? 0xffd54f : 0x00f0ff);
-    spark.setScale(Phaser.Math.FloatBetween(0.4, 0.7));
+
+    let sparkColor = this.activeColor;
+    if (this.currentSkin === 'flame') {
+      sparkColor = Phaser.Utils.Array.GetRandom([0xff3d00, 0xff9100, 0xffd600]);
+    } else if (this.currentSkin === 'jade') {
+      sparkColor = Phaser.Utils.Array.GetRandom([0x00e676, 0x69f0ae, 0xb9f6ca]);
+    } else if (this.currentSkin === 'rainbow') {
+      sparkColor = Phaser.Display.Color.HSLToColor(this.rainbowHue, 1, 0.6).color;
+    }
+
+    spark.setTint(sparkColor);
+    spark.setScale(Phaser.Math.FloatBetween(0.4, 0.75));
 
     this.scene.tweens.add({
       targets: spark,
       alpha: 0,
       scale: 0.1,
+      y: y - Phaser.Math.Between(4, 16),
       duration: 180,
       onComplete: () => spark.destroy()
     });
@@ -92,14 +132,10 @@ export class BladeTrail {
 
   public activateComboFlare(): void {
     this.isComboActive = true;
-    this.activeColor = 0xffa000; // Blazing gold fiery blade
-    this.activeCoreColor = 0xfff9c4;
-
     if (this.comboResetTimer) this.comboResetTimer.remove();
-    this.comboResetTimer = this.scene.time.delayedCall(700, () => {
+    this.comboResetTimer = this.scene.time.delayedCall(750, () => {
       this.isComboActive = false;
-      this.activeColor = 0x00f0ff;
-      this.activeCoreColor = 0xffffff;
+      this.setBladeSkin(this.currentSkin);
     });
   }
 
@@ -107,30 +143,37 @@ export class BladeTrail {
     const now = this.scene.time.now;
     this.graphics.clear();
 
-    // Prune old points
     this.points = this.points.filter((pt) => now - pt.time <= GAME_CONSTANTS.BLADE_LIFETIME_MS);
 
     if (this.points.length < 2) return;
 
-    // Draw Blade Glow & Blade Core
+    // Rainbow shifting hue
+    if (this.currentSkin === 'rainbow') {
+      this.rainbowHue = (this.rainbowHue + 0.015) % 1;
+      this.activeColor = Phaser.Display.Color.HSLToColor(this.rainbowHue, 1, 0.55).color;
+    }
+
+    const drawOuterColor = this.isComboActive ? 0xffab00 : this.activeColor;
+    const drawCoreColor = this.isComboActive ? 0xfff9c4 : this.activeCoreColor;
+
     for (let i = 0; i < this.points.length - 1; i++) {
       const p1 = this.points[i];
       const p2 = this.points[i + 1];
 
       const ageRatio = (now - p2.time) / GAME_CONSTANTS.BLADE_LIFETIME_MS;
       const alpha = Math.max(0, 1 - ageRatio);
-      const width = (1 - ageRatio) * (this.isComboActive ? 18 : 13);
+      const width = (1 - ageRatio) * (this.isComboActive ? 20 : 14);
 
-      // Outer neon flare
-      this.graphics.lineStyle(width * 2.2, this.activeColor, alpha * 0.35);
+      // Outer glow
+      this.graphics.lineStyle(width * 2.3, drawOuterColor, alpha * 0.35);
       this.graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
 
       // Mid blade
-      this.graphics.lineStyle(width * 1.2, this.activeColor, alpha * 0.75);
+      this.graphics.lineStyle(width * 1.2, drawOuterColor, alpha * 0.8);
       this.graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
 
-      // Core white sharp edge
-      this.graphics.lineStyle(Math.max(1, width * 0.5), this.activeCoreColor, alpha * 0.98);
+      // Core sharp edge
+      this.graphics.lineStyle(Math.max(1, width * 0.5), drawCoreColor, alpha * 0.98);
       this.graphics.lineBetween(p1.x, p1.y, p2.x, p2.y);
     }
   }
@@ -159,7 +202,6 @@ export class BladeTrail {
     const cut = this.getRecentCutSegment();
     if (!cut) return null;
 
-    // Must exceed minimum slicing speed
     if (cut.speed < GAME_CONSTANTS.BLADE_MIN_VELOCITY && this.points.length > 2) {
       return null;
     }

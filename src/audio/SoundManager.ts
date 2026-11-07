@@ -2,9 +2,6 @@ export class SoundManager {
   private static instance: SoundManager;
   private ctx: AudioContext | null = null;
   private isMuted: boolean = false;
-  private musicPlaying: boolean = false;
-  private musicInterval: number | null = null;
-  private currentStep: number = 0;
 
   private constructor() {
     const saved = localStorage.getItem('slice_it_muted');
@@ -22,7 +19,9 @@ export class SoundManager {
 
   public init(): void {
     if (!this.ctx) {
-      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioContextClass) {
         this.ctx = new AudioContextClass();
       }
@@ -35,11 +34,6 @@ export class SoundManager {
   public toggleMute(): boolean {
     this.isMuted = !this.isMuted;
     localStorage.setItem('slice_it_muted', String(this.isMuted));
-    if (this.isMuted) {
-      this.stopMusic();
-    } else {
-      this.startMusic();
-    }
     return this.isMuted;
   }
 
@@ -47,7 +41,7 @@ export class SoundManager {
     return this.isMuted;
   }
 
-  // --- SWOOSH / SWIPE SOUND ---
+  // --- AERODYNAMIC SOFT SWIPE / SWOOSH ---
   public playSwoosh(): void {
     if (this.isMuted) return;
     this.init();
@@ -55,47 +49,45 @@ export class SoundManager {
 
     try {
       const now = this.ctx.currentTime;
-      const bufferSize = this.ctx.sampleRate * 0.15;
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.12);
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
       const data = buffer.getChannelData(0);
 
-      // Pinkish noise
-      let b0 = 0, b1 = 0, b2 = 0;
+      // Smooth brownian-style aerodynamic air noise
+      let last = 0;
       for (let i = 0; i < bufferSize; i++) {
         const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179;
-        b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520;
-        data[i] = (b0 + b1 + b2) * 0.4;
+        last = (last + 0.04 * white) / 1.04;
+        data[i] = last * 3.5;
       }
 
       const noise = this.ctx.createBufferSource();
       noise.buffer = buffer;
 
       const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(500, now);
-      filter.frequency.exponentialRampToValueAtTime(2200 + Math.random() * 600, now + 0.05);
-      filter.frequency.exponentialRampToValueAtTime(300, now + 0.14);
-      filter.Q.value = 3.0;
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(600, now);
+      filter.frequency.exponentialRampToValueAtTime(1600 + Math.random() * 300, now + 0.04);
+      filter.frequency.exponentialRampToValueAtTime(300, now + 0.11);
+      filter.Q.value = 1.2;
 
       const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(0.01, now);
-      gain.gain.linearRampToValueAtTime(0.25, now + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
 
       noise.connect(filter);
       filter.connect(gain);
       gain.connect(this.ctx.destination);
 
       noise.start(now);
-      noise.stop(now + 0.15);
+      noise.stop(now + 0.12);
     } catch {
-      // AudioContext safe catch
+      // Safe catch
     }
   }
 
-  // --- FRUIT SPLAT / SQUELCH SOUND ---
+  // --- SATISFYING CRISP CUT + JUICY SQUISH ---
   public playSlice(fruitType?: string): void {
     if (this.isMuted) return;
     this.init();
@@ -103,61 +95,67 @@ export class SoundManager {
 
     try {
       const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const oscGain = this.ctx.createGain();
 
-      // Pitch variations based on fruit size
-      let baseFreq = 480;
-      if (fruitType === 'watermelon') baseFreq = 340;
-      else if (fruitType === 'strawberry') baseFreq = 620;
-      else if (fruitType === 'pineapple') baseFreq = 400;
+      // 1. Blade cut transient (crisp metallic snap)
+      const snapOsc = this.ctx.createOscillator();
+      const snapGain = this.ctx.createGain();
+      snapOsc.type = 'sine';
+      snapOsc.frequency.setValueAtTime(1400, now);
+      snapOsc.frequency.exponentialRampToValueAtTime(220, now + 0.03);
 
-      baseFreq += (Math.random() - 0.5) * 80;
+      snapGain.gain.setValueAtTime(0.22, now);
+      snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
 
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(baseFreq * 1.5, now);
-      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.4, now + 0.12);
+      snapOsc.connect(snapGain);
+      snapGain.connect(this.ctx.destination);
+      snapOsc.start(now);
+      snapOsc.stop(now + 0.04);
 
-      oscGain.gain.setValueAtTime(0.35, now);
-      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-
-      osc.connect(oscGain);
-      oscGain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.15);
-
-      // Squishy noise pop
-      const bufferSize = this.ctx.sampleRate * 0.1;
+      // 2. Wet pulp squelch / fruit splatter
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.14);
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
       const data = buffer.getChannelData(0);
+
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.15));
+        const decay = Math.exp(-i / (bufferSize * 0.25));
+        data[i] = (Math.random() * 2 - 1) * decay;
       }
 
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = buffer;
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1400, now);
-      filter.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+      const squishNoise = this.ctx.createBufferSource();
+      squishNoise.buffer = buffer;
 
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.3, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      // Distinct pitch per fruit
+      let filterCutoff = 1100;
+      if (fruitType === 'watermelon') filterCutoff = 800; // Deep watery thud
+      else if (fruitType === 'orange') filterCutoff = 1300; // Zesty squirt
+      else if (fruitType === 'apple') filterCutoff = 1600; // Crunchy snap
+      else if (fruitType === 'pineapple') filterCutoff = 950;
+      else if (fruitType === 'strawberry') filterCutoff = 1450;
 
-      noise.connect(filter);
-      filter.connect(noiseGain);
-      noiseGain.connect(this.ctx.destination);
+      filterCutoff += (Math.random() - 0.5) * 120;
 
-      noise.start(now);
-      noise.stop(now + 0.1);
+      const squishFilter = this.ctx.createBiquadFilter();
+      squishFilter.type = 'bandpass';
+      squishFilter.frequency.setValueAtTime(filterCutoff * 1.5, now);
+      squishFilter.frequency.exponentialRampToValueAtTime(filterCutoff * 0.4, now + 0.12);
+      squishFilter.Q.value = 2.2;
+
+      const squishGain = this.ctx.createGain();
+      squishGain.gain.setValueAtTime(0.35, now);
+      squishGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+
+      squishNoise.connect(squishFilter);
+      squishFilter.connect(squishGain);
+      squishGain.connect(this.ctx.destination);
+
+      squishNoise.start(now);
+      squishNoise.stop(now + 0.14);
     } catch {
-      // AudioContext safe catch
+      // Safe catch
     }
   }
 
-  // --- COMBO CHIME ---
+  // --- WARM CRYSTAL CHIME FOR COMBOS ---
   public playCombo(comboCount: number): void {
     if (this.isMuted) return;
     this.init();
@@ -165,34 +163,50 @@ export class SoundManager {
 
     try {
       const now = this.ctx.currentTime;
-      // Musical pentatonic scale for combo feedback
-      const notes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
-      const noteCount = Math.min(comboCount, 5);
+      // Warm pentatonic bell chords: C5, D5, E5, G5, A5, C6
+      const baseNotes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+      const startIdx = Math.min(Math.max(0, comboCount - 2), baseNotes.length - 2);
 
-      for (let i = 0; i < noteCount; i++) {
-        const timeOffset = i * 0.06;
+      // Play 2-3 harmonious bell harmonics
+      for (let i = 0; i < 3; i++) {
+        const noteIndex = Math.min(startIdx + i, baseNotes.length - 1);
+        const freq = baseNotes[noteIndex];
+        const offset = i * 0.05;
+
+        // Fundamental tone
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-
         osc.type = 'sine';
-        const noteIndex = Math.min(i + (comboCount - 3), notes.length - 1);
-        osc.frequency.setValueAtTime(notes[noteIndex], now + timeOffset);
+        osc.frequency.setValueAtTime(freq, now + offset);
 
-        gain.gain.setValueAtTime(0.2, now + timeOffset);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + timeOffset + 0.3);
+        gain.gain.setValueAtTime(0.18, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.4);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.45);
 
-        osc.start(now + timeOffset);
-        osc.stop(now + timeOffset + 0.35);
+        // Warm harmonic overtone (glockenspiel shimmer)
+        const overtone = this.ctx.createOscillator();
+        const overtoneGain = this.ctx.createGain();
+        overtone.type = 'sine';
+        overtone.frequency.setValueAtTime(freq * 2.76, now + offset);
+
+        overtoneGain.gain.setValueAtTime(0.05, now + offset);
+        overtoneGain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.25);
+
+        overtone.connect(overtoneGain);
+        overtoneGain.connect(this.ctx.destination);
+        overtone.start(now + offset);
+        overtone.stop(now + offset + 0.26);
       }
     } catch {
       // Safe catch
     }
   }
 
-  // --- BOMB EXPLOSION ---
+  // --- DEEP CINEMATIC EXPLOSION ---
   public playExplosion(): void {
     if (this.isMuted) return;
     this.init();
@@ -201,28 +215,27 @@ export class SoundManager {
     try {
       const now = this.ctx.currentTime;
 
-      // Low frequency sub-bass thump
+      // Sub-bass rumble
       const osc = this.ctx.createOscillator();
       const oscGain = this.ctx.createGain();
-
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(160, now);
-      osc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(25, now + 0.7);
 
-      oscGain.gain.setValueAtTime(0.8, now);
-      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      oscGain.gain.setValueAtTime(0.7, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
 
       osc.connect(oscGain);
       oscGain.connect(this.ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.8);
+      osc.stop(now + 0.75);
 
-      // Deep distorted noise burst
-      const bufferSize = this.ctx.sampleRate * 0.9;
+      // Lowpass explosion blast
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.8);
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.35));
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
       }
 
       const noise = this.ctx.createBufferSource();
@@ -230,25 +243,25 @@ export class SoundManager {
 
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1200, now);
-      filter.frequency.exponentialRampToValueAtTime(100, now + 0.7);
+      filter.frequency.setValueAtTime(900, now);
+      filter.frequency.exponentialRampToValueAtTime(60, now + 0.6);
 
       const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.7, now);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+      noiseGain.gain.setValueAtTime(0.65, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
 
       noise.connect(filter);
       filter.connect(noiseGain);
       noiseGain.connect(this.ctx.destination);
 
       noise.start(now);
-      noise.stop(now + 0.9);
+      noise.stop(now + 0.8);
     } catch {
       // Safe catch
     }
   }
 
-  // --- BOMB FUSE TICK/HISS ---
+  // --- SUBTLE FUSE HISS ---
   public playFuseHiss(): void {
     if (this.isMuted) return;
     this.init();
@@ -256,11 +269,11 @@ export class SoundManager {
 
     try {
       const now = this.ctx.currentTime;
-      const bufferSize = this.ctx.sampleRate * 0.05;
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.04);
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * 0.15;
+        data[i] = (Math.random() * 2 - 1) * 0.08;
       }
 
       const noise = this.ctx.createBufferSource();
@@ -268,24 +281,24 @@ export class SoundManager {
 
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'highpass';
-      filter.frequency.setValueAtTime(4500, now);
+      filter.frequency.setValueAtTime(4000, now);
 
       const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.038);
 
       noise.connect(filter);
       filter.connect(gain);
       gain.connect(this.ctx.destination);
 
       noise.start(now);
-      noise.stop(now + 0.05);
+      noise.stop(now + 0.04);
     } catch {
       // Safe catch
     }
   }
 
-  // --- MISS / LIFE LOST BUZZER ---
+  // --- MISS SOUND (Deep wooden strike) ---
   public playMiss(): void {
     if (this.isMuted) return;
     this.init();
@@ -296,24 +309,24 @@ export class SoundManager {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.linearRampToValueAtTime(90, now + 0.25);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.2);
 
       gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.3);
+      osc.stop(now + 0.25);
     } catch {
       // Safe catch
     }
   }
 
-  // --- BUTTON CLICK / UI SOUND ---
+  // --- CLEAN BUTTON TAP ---
   public playClick(): void {
     if (this.isMuted) return;
     this.init();
@@ -325,17 +338,17 @@ export class SoundManager {
       const gain = this.ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(650, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+      osc.frequency.setValueAtTime(700, now);
+      osc.frequency.exponentialRampToValueAtTime(950, now + 0.04);
 
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.08);
+      osc.stop(now + 0.05);
     } catch {
       // Safe catch
     }
@@ -349,16 +362,16 @@ export class SoundManager {
 
     try {
       const now = this.ctx.currentTime;
-      const notes = [440, 415.3, 392, 349.2];
+      const notes = [440, 392, 349.2, 293.66];
       notes.forEach((freq, idx) => {
         const osc = this.ctx!.createOscillator();
         const gain = this.ctx!.createGain();
-        const t = now + idx * 0.18;
+        const t = now + idx * 0.16;
 
-        osc.type = 'triangle';
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(freq, t);
 
-        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.setValueAtTime(0.2, t);
         gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
 
         osc.connect(gain);
@@ -372,73 +385,7 @@ export class SoundManager {
     }
   }
 
-  // --- PROCEDURAL BACKGROUND ARCADE GROOVE ---
-  public startMusic(): void {
-    if (this.isMuted || this.musicPlaying) return;
-    this.init();
-    if (!this.ctx) return;
-
-    this.musicPlaying = true;
-    this.currentStep = 0;
-
-    // 120 BPM step sequencer (16th notes = 125ms per step)
-    const stepDuration = 135;
-    const bassScale = [130.81, 146.83, 164.81, 196.00, 220.00]; // C, D, E, G, A
-    const melodyScale = [523.25, 659.25, 783.99, 880.00, 1046.50];
-
-    this.musicInterval = window.setInterval(() => {
-      if (!this.musicPlaying || this.isMuted || !this.ctx) return;
-      const step = this.currentStep % 16;
-      const now = this.ctx.currentTime;
-
-      // Bassline on beats 0, 3, 6, 8, 11, 14
-      if ([0, 3, 6, 8, 11, 14].includes(step)) {
-        try {
-          const bassOsc = this.ctx.createOscillator();
-          const bassGain = this.ctx.createGain();
-          bassOsc.type = 'triangle';
-          const note = bassScale[(Math.floor(this.currentStep / 16) + (step % 3)) % bassScale.length];
-          bassOsc.frequency.setValueAtTime(note, now);
-
-          bassGain.gain.setValueAtTime(0.08, now);
-          bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
-
-          bassOsc.connect(bassGain);
-          bassGain.connect(this.ctx.destination);
-          bassOsc.start(now);
-          bassOsc.stop(now + 0.2);
-        } catch {}
-      }
-
-      // Marimba chime on select steps
-      if ([2, 7, 10, 13].includes(step)) {
-        try {
-          const chimeOsc = this.ctx.createOscillator();
-          const chimeGain = this.ctx.createGain();
-          chimeOsc.type = 'sine';
-          const chimeNote = melodyScale[(step * 2) % melodyScale.length];
-          chimeOsc.frequency.setValueAtTime(chimeNote, now);
-
-          chimeGain.gain.setValueAtTime(0.04, now);
-          chimeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-          chimeOsc.connect(chimeGain);
-          chimeGain.connect(this.ctx.destination);
-          chimeOsc.start(now);
-          chimeOsc.stop(now + 0.26);
-        } catch {}
-      }
-
-      this.currentStep++;
-    }, stepDuration);
-  }
-
-  public stopMusic(): void {
-    this.musicPlaying = false;
-    if (this.musicInterval !== null) {
-      clearInterval(this.musicInterval);
-      this.musicInterval = null;
-    }
-  }
+  // No annoying background MIDI synth loop!
+  public startMusic(): void {}
+  public stopMusic(): void {}
 }
-

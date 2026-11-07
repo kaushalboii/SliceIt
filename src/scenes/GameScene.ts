@@ -48,27 +48,30 @@ export class GameScene extends Phaser.Scene {
     this.particleManager = new ParticleManager(this);
     this.bladeTrail = new BladeTrail(this);
 
-    // Setup ScoreManager with Combo Flare integration
+    // Setup ScoreManager with Combo Flare & Streak callbacks
     this.scoreManager = new ScoreManager(
       this.mode,
       this.particleManager,
-      (score) => {
-        this.hud.updateScore(score);
-      },
-      (comboCount) => {
-        if (comboCount >= 2) {
-          this.bladeTrail.activateComboFlare();
+      {
+        onScoreChanged: (score) => {
+          this.hud.updateScore(score);
+        },
+        onStreakChanged: (streak) => {
+          this.hud.updateStreak(streak);
+        },
+        onComboTriggered: (comboCount) => {
+          if (comboCount >= 2) {
+            this.bladeTrail.activateComboFlare();
+          }
         }
       }
     );
 
-    this.hud = new HUD(this, this.mode, {
+    this.hud = new HUD(this, this.mode, this.bladeTrail, {
       onResume: () => this.physics.resume(),
       onRestart: () => this.restartGame(),
       onQuit: () => this.quitToMenu()
     });
-
-    SoundManager.getInstance().startMusic();
 
     if (this.mode === 'time') {
       this.remainingTime = GAME_CONSTANTS.TIME_MODE_DURATION;
@@ -84,7 +87,6 @@ export class GameScene extends Phaser.Scene {
       this.createBackground(gameSize.width, gameSize.height);
     });
 
-    // Detect stroke end on pointer up
     this.input.on('pointerup', () => {
       this.scoreManager.forceEndStroke(this.lastSlicePos.x, this.lastSlicePos.y);
     });
@@ -220,6 +222,8 @@ export class GameScene extends Phaser.Scene {
   private handleMissedFruit(fruit: Fruit): void {
     if (this.isGameOver) return;
 
+    this.scoreManager.resetStreak();
+
     if (this.mode === 'classic') {
       this.lives--;
       this.hud.updateLives(this.lives);
@@ -261,6 +265,7 @@ export class GameScene extends Phaser.Scene {
       const hit = this.bladeTrail.checkSliceIntersection(bomb.x, bomb.y, bomb.radius);
       if (hit) {
         bomb.detonate();
+        this.scoreManager.resetStreak();
 
         if (this.mode === 'classic') {
           this.triggerGameOver('Bomb Exploded!');
